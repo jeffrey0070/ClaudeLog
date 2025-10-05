@@ -1,0 +1,92 @@
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Entry list item styling */
+.entry-item {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.entry-item:hover {
+  background-color: #f8f9fa;
+}
+
+.entry-item.selected {
+  background-color: #e7f3ff;
+  border-left: 3px solid #0d6efd;
+}
+
+.entry-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Section header styling */
+.section-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #f8f9fa !important;
+}
+
+/* Editable title */
+.editable-title {
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  transition: background-color 0.2s;
+}
+
+.editable-title:hover {
+  background-color: #f8f9fa;
+}
+
+/* Markdown content styling */
+.markdown-content pre {
+  background-color: #f6f8fa;
+  padding: 1rem;
+  border-radius: 0.25rem;
+  overflow-x: auto;
+}
+
+.markdown-content code {
+  background-color: #f6f8fa;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  font-family: 'Courier New', monospace;
+}
+
+.markdown-content pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+/* Search bar */
+.search-bar {
+  background-color: #fff;
+  z-index: 100;
+}
+
+/* Scrollable areas */
+.conversation-list, .conversation-detail {
+  height: 100%;
+}

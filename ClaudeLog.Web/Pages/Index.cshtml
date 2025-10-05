@@ -1,0 +1,42 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "ClaudeLog - Conversation Browser";
+}
+
+<div class="container-fluid p-0" style="height: 100vh; display: flex; flex-direction: column;">
+    <!-- Search Bar -->
+    <div class="search-bar p-3 border-bottom">
+        <div class="d-flex gap-2 align-items-center">
+            <input type="text" id="searchInput" class="form-control" placeholder="Search conversations..." />
+            <button id="clearSearch" class="btn btn-secondary">Clear</button>
+            <a href="/Test" class="btn btn-outline-info">🧪 Test API</a>
+        </div>
+    </div>
+
+    <!-- Two-Pane Layout -->
+    <div class="d-flex flex-grow-1 overflow-hidden">
+        <!-- Left Panel: Question List -->
+        <div class="conversation-list border-end" style="width: 400px; overflow-y: auto;">
+            <div id="entriesList" class="p-2">
+                <div class="text-center text-muted p-4">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+            <div id="loadMore" class="text-center p-3" style="display: none;">
+                <button class="btn btn-outline-primary" onclick="loadMoreEntries()">Load More</button>
+            </div>
+        </div>
+
+        <!-- Right Panel: Detail View -->
+        <div class="conversation-detail flex-grow-1 overflow-y-auto p-4">
+            <div id="detailView">
+                <div class="text-center text-muted p-5">
+                    <h4>Select a conversation to view details</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

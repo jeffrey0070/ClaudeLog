@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(del log-conversation.py)",
+      "Bash(dotnet build)",
+      "Read(//c/Users/jeffr/source/repos/CodexLog/**)",
+      "Bash(dotnet new:*)",
+      "Bash(dotnet sln:*)",
+      "Bash(sqlcmd:*)",
+      "Bash(dotnet add package:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet publish:*)",
+      "Bash(echo $USERPROFILE)",
+      "Bash(ls:*)",
+      "Bash(test:*)",
+      "Read(//c/Apps/ClaudeLog.Hook.Claude/**)",
+      "Bash(curl:*)",
+      "Bash(cat:*)",
+      "Bash(\"C:/Apps/ClaudeLog.Hook.Claude/ClaudeLog.Hook.Claude.exe\")",
+      "Bash(python:*)",
+      "Bash(C:/Apps/ClaudeLog.Hook.Claude/ClaudeLog.Hook.Claude.exe)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
