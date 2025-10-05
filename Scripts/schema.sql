@@ -1,17 +1,26 @@
+-- ========================================
 -- ClaudeLog Database Schema
+-- ========================================
 -- Database: ClaudeLog
 -- SQL Server with Windows Integrated Security
+-- Creates tables for storing Claude Code conversation logs
+-- ========================================
 
 USE ClaudeLog;
 GO
 
--- Create Sections table
+-- ========================================
+-- Sections Table
+-- ========================================
+-- Represents a CLI session (conversation group)
+-- Each session has a unique GUID provided by Claude Code
+-- ========================================
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Sections')
 BEGIN
     CREATE TABLE dbo.Sections (
-        SectionId UNIQUEIDENTIFIER PRIMARY KEY,
-        Tool NVARCHAR(32) NOT NULL,
-        CreatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME()
+        SectionId UNIQUEIDENTIFIER PRIMARY KEY,  -- Session GUID from Claude Code
+        Tool NVARCHAR(32) NOT NULL,              -- CLI tool name (e.g., "Claude Code")
+        CreatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME()  -- Local timestamp
     );
 
     PRINT 'Table dbo.Sections created successfully.';
@@ -22,16 +31,24 @@ BEGIN
 END
 GO
 
--- Create Conversations table
+-- ========================================
+-- Conversations Table
+-- ========================================
+-- Stores individual Q&A pairs from conversations
+-- Title is auto-generated from question text
+-- IsFavorite and IsDeleted support UI filtering
+-- ========================================
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Conversations')
 BEGIN
     CREATE TABLE dbo.Conversations (
         Id BIGINT IDENTITY(1,1) PRIMARY KEY,
-        SectionId UNIQUEIDENTIFIER NOT NULL,
-        Title NVARCHAR(400) NOT NULL,
-        Question NVARCHAR(MAX) NOT NULL,
-        Response NVARCHAR(MAX) NOT NULL,
-        CreatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+        SectionId UNIQUEIDENTIFIER NOT NULL,         -- Links to Sections table
+        Title NVARCHAR(400) NOT NULL,                -- Auto-generated title (200 chars, Unicode safe)
+        Question NVARCHAR(MAX) NOT NULL,             -- User question (trimmed)
+        Response NVARCHAR(MAX) NOT NULL,             -- Assistant response (trimmed)
+        IsFavorite BIT NOT NULL DEFAULT 0,           -- User can mark as favorite
+        IsDeleted BIT NOT NULL DEFAULT 0,            -- Soft delete (can be restored)
+        CreatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME(),  -- Local timestamp
         CONSTRAINT FK_Conversations_Sections FOREIGN KEY (SectionId)
             REFERENCES dbo.Sections(SectionId)
     );
@@ -41,21 +58,40 @@ END
 ELSE
 BEGIN
     PRINT 'Table dbo.Conversations already exists.';
+
+    -- Add IsFavorite column if missing (for existing installations)
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Conversations') AND name = 'IsFavorite')
+    BEGIN
+        ALTER TABLE dbo.Conversations ADD IsFavorite BIT NOT NULL DEFAULT 0;
+        PRINT 'Added IsFavorite column to Conversations table.';
+    END
+
+    -- Add IsDeleted column if missing (for existing installations)
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Conversations') AND name = 'IsDeleted')
+    BEGIN
+        ALTER TABLE dbo.Conversations ADD IsDeleted BIT NOT NULL DEFAULT 0;
+        PRINT 'Added IsDeleted column to Conversations table.';
+    END
 END
 GO
 
--- Create ErrorLogs table
+-- ========================================
+-- ErrorLogs Table
+-- ========================================
+-- Stores errors from web app and hook for diagnostics
+-- Helps troubleshoot integration issues
+-- ========================================
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ErrorLogs')
 BEGIN
     CREATE TABLE dbo.ErrorLogs (
         Id BIGINT IDENTITY(1,1) PRIMARY KEY,
-        Source NVARCHAR(64) NOT NULL,
-        Message NVARCHAR(1024) NOT NULL,
-        Detail NVARCHAR(MAX) NULL,
-        Path NVARCHAR(256) NULL,
-        SectionId UNIQUEIDENTIFIER NULL,
-        EntryId BIGINT NULL,
-        CreatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME()
+        Source NVARCHAR(64) NOT NULL,            -- Source component (e.g., "Hook.Claude", "UI")
+        Message NVARCHAR(1024) NOT NULL,         -- Error message
+        Detail NVARCHAR(MAX) NULL,               -- Stack trace or additional details
+        Path NVARCHAR(256) NULL,                 -- File path if relevant
+        SectionId UNIQUEIDENTIFIER NULL,         -- Related section if applicable
+        EntryId BIGINT NULL,                     -- Related entry if applicable
+        CreatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME()  -- Local timestamp
     );
 
     PRINT 'Table dbo.ErrorLogs created successfully.';

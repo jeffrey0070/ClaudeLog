@@ -1,20 +1,25 @@
 {
+  // Visual Studio launch settings for development
+  // Configures how the app runs in VS 2022 debugger
   "$schema": "https://json.schemastore.org/launchsettings.json",
   "profiles": {
+    // HTTP profile (recommended for local development)
+    // Runs on port 15089 for development
     "http": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
-      "applicationUrl": "http://localhost:5090",
+      "applicationUrl": "http://localhost:15089",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
     },
+    // HTTPS profile (optional)
     "https": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
-      "applicationUrl": "https://localhost:7090;http://localhost:5090",
+      "applicationUrl": "https://localhost:17089;http://localhost:15089",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }

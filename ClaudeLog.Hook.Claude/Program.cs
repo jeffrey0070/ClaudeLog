@@ -4,16 +4,20 @@ using System.Text.Json.Serialization;
 
 namespace ClaudeLog.Hook.Claude;
 
+/// <summary>
+/// Claude Code hook that captures conversation transcripts and logs them to ClaudeLog API.
+/// This hook is triggered by the "Stop" event after each Claude Code conversation turn.
+/// </summary>
 class Program
 {
-    private const string ApiBaseUrl = "http://localhost:5089/api";
+    private const string ApiBaseUrl = "http://localhost:15088/api";
     private static readonly HttpClient httpClient = new();
 
     static async Task Main(string[] args)
     {
         try
         {
-            // Read hook input from stdin
+            // Read hook input from stdin (JSON provided by Claude Code)
             using var reader = new StreamReader(Console.OpenStandardInput());
             var json = await reader.ReadToEndAsync();
 
@@ -24,20 +28,24 @@ class Program
                 await ProcessTranscriptAsync(hookInput.SessionId, hookInput.TranscriptPath);
             }
 
-            // Output empty JSON (no modifications needed)
+            // Output empty JSON (hook doesn't modify anything)
             Console.WriteLine("{}");
         }
         catch (Exception ex)
         {
-            // Log error but don't fail the hook
+            // Log error but don't fail the hook (allows Claude Code to continue)
             await LogErrorAsync("Hook.Claude", ex.Message, ex.StackTrace ?? "");
             Console.WriteLine("{}");
         }
     }
 
+    /// <summary>
+    /// Processes the Claude Code transcript file and extracts the last Q&A pair.
+    /// Creates a section for the session and logs the conversation entry.
+    /// </summary>
     static async Task ProcessTranscriptAsync(string sessionId, string transcriptPath)
     {
-        // Expand environment variables in path
+        // Expand environment variables in path (handles %USERPROFILE% etc.)
         transcriptPath = Environment.ExpandEnvironmentVariables(transcriptPath);
 
         if (!File.Exists(transcriptPath))
@@ -46,7 +54,7 @@ class Program
             return;
         }
 
-        // Read last Q&A from transcript
+        // Read last Q&A from transcript (JSONL format)
         var (question, response) = await ReadLastInteractionAsync(transcriptPath);
 
         if (string.IsNullOrEmpty(question) || string.IsNullOrEmpty(response))
@@ -54,13 +62,17 @@ class Program
             return; // Nothing to log
         }
 
-        // Ensure section exists for this session
+        // Ensure section exists for this session (creates if not exists)
         await EnsureSectionAsync(sessionId);
 
-        // Log the conversation entry
+        // Log the conversation entry via API
         await LogEntryAsync(sessionId, question, response);
     }
 
+    /// <summary>
+    /// Reads the JSONL transcript file and extracts the last user question and assistant response.
+    /// Claude Code v2.0.8+ uses format: {"type":"user/assistant", "message":{"content":[...]}}
+    /// </summary>
     static async Task<(string? question, string? response)> ReadLastInteractionAsync(string transcriptPath)
     {
         try
@@ -68,6 +80,7 @@ class Program
             var lines = await File.ReadAllLinesAsync(transcriptPath);
             var messages = new List<TranscriptMessage>();
 
+            // Parse JSONL format (one JSON object per line)
             foreach (var line in lines)
             {
                 if (!string.IsNullOrWhiteSpace(line))

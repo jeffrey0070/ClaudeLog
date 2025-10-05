@@ -42,7 +42,7 @@ echo   Web App: C:\Apps\ClaudeLog.Web\ClaudeLog.Web.exe
 echo   Hook:    C:\Apps\ClaudeLog.Hook.Claude\ClaudeLog.Hook.Claude.exe
 echo.
 echo Production settings:
-echo   Port: 5089 (configured in appsettings.Production.json)
+echo   Port: 15088 (configured in appsettings.Production.json)
 echo   Environment: Production
 echo.
 echo Next steps:
@@ -53,7 +53,7 @@ echo   2. Run the web app:
 echo      cd C:\Apps\ClaudeLog.Web
 echo      ClaudeLog.Web.exe
 echo.
-echo   3. Access at: http://localhost:5089
+echo   3. Access at: http://localhost:15088
 echo.
 goto :end
 

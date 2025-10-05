@@ -10,13 +10,19 @@ public record CreateEntryResponse(long Id);
 
 public record UpdateTitleRequest(string Title);
 
+public record UpdateFavoriteRequest(bool IsFavorite);
+
+public record UpdateDeletedRequest(bool IsDeleted);
+
 public record EntryListDto(
     long Id,
     string Title,
     DateTime CreatedAt,
     Guid SectionId,
     DateTime SectionCreatedAt,
-    string Tool
+    string Tool,
+    bool IsFavorite,
+    bool IsDeleted
 );
 
 public record EntryDetailDto(
@@ -27,5 +33,7 @@ public record EntryDetailDto(
     DateTime CreatedAt,
     Guid SectionId,
     string Tool,
-    DateTime SectionCreatedAt
+    DateTime SectionCreatedAt,
+    bool IsFavorite,
+    bool IsDeleted
 );

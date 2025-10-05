@@ -5,14 +5,17 @@ ClaudeLog automatically logs all your Claude Code Q&A conversations to SQL Serve
 ## Features
 
 - **Automatic Logging**: Captures every Claude Code conversation via the Stop hook
-- **Web UI**: Browse conversations with a clean two-pane interface
+- **Web UI**: Browse conversations with a clean, compact two-pane interface
 - **Real-time Search**: Search across titles, questions, and responses (300ms debounced)
-- **Section Grouping**: Conversations grouped by CLI session
-- **Markdown Rendering**: Responses displayed with proper markdown formatting
+- **Section Grouping**: Conversations grouped by CLI session (newest first)
+- **Favorites & Delete**: Mark conversations as favorites or deleted with inline icon buttons
+- **Filtering**: Show/hide deleted entries, filter by favorites only (left panel controls)
+- **Markdown Rendering**: Responses displayed with proper markdown formatting and optimized spacing
 - **Editable Titles**: Click any title to rename it inline
 - **Copy Functions**: Copy questions, responses, or both to clipboard
 - **Chinese Support**: Proper Unicode handling for titles (200 text elements)
 - **Error Logging**: All errors logged to database for diagnostics
+- **Graceful Shutdown**: Ctrl+C properly stops the web application
 
 ## Project Structure
 
@@ -47,7 +50,7 @@ sqlcmd -S localhost -d ClaudeLog -E -i Scripts\indexes.sql
 
 **Tables created:**
 - `dbo.Sections` - CLI sessions
-- `dbo.Conversations` - Q&A entries
+- `dbo.Conversations` - Q&A entries (includes Title, Question, Response, IsFavorite, IsDeleted)
 - `dbo.ErrorLogs` - Error tracking
 
 ### 2. Build the Solution
@@ -116,28 +119,32 @@ cd C:/Apps/ClaudeLog.Web
 ClaudeLog.Web.exe
 ```
 
-The application will be available at: **http://localhost:5089**
+The application will be available at: **http://localhost:15088**
 
 **For development:**
 ```bash
 cd ClaudeLog.Web
 dotnet run
 ```
-Development runs on port 5088.
+Development runs on port 15089.
 
 ## Usage
 
 1. **Start the web app** - Run `C:/Apps/ClaudeLog.Web/ClaudeLog.Web.exe`
 2. **Use Claude Code normally** - Ask questions as usual
 3. **Conversations auto-log** - Each Q&A is automatically saved after each response
-4. **Browse in web UI** - Visit http://localhost:5089 to view all conversations
+4. **Browse in web UI** - Visit http://localhost:15088 to view all conversations
 
 ### Web UI Features
 
 - **Search Bar**: Type to filter conversations (searches title, question, response)
-- **Left Panel**: Shows all conversations grouped by session (newest first)
+- **Left Panel**:
+  - Shows all conversations grouped by session (newest first)
+  - Filter controls: Show Deleted, Favorites Only
+  - Inline buttons: ⭐/☆ for favorites, 🗑️/↩️ for delete/restore
+  - Hover over titles to see timestamp
 - **Right Panel**: Shows full question and response for selected conversation
-- **Click Title**: Edit title inline
+- **Click Title**: Edit title inline (in detail view)
 - **Copy Buttons**: Copy question, response, or both
 - **Pagination**: Loads 200 entries at a time with "Load More" button
 
@@ -151,9 +158,11 @@ The web app exposes these REST endpoints:
 
 ### Entries
 - `POST /api/entries` - Create a new conversation entry
-- `GET /api/entries?search=&page=&pageSize=` - List/search entries
+- `GET /api/entries?search=&page=&pageSize=&includeDeleted=&showFavoritesOnly=` - List/search entries with filters
 - `GET /api/entries/{id}` - Get entry detail
 - `PATCH /api/entries/{id}/title` - Update entry title
+- `PATCH /api/entries/{id}/favorite` - Toggle favorite status
+- `PATCH /api/entries/{id}/deleted` - Toggle deleted status
 
 ### Errors
 - `POST /api/errors` - Log an error
@@ -179,7 +188,7 @@ Update `Server` if using a different SQL Server instance.
 The hook is configured to connect to the production web app port:
 
 ```csharp
-private const string ApiBaseUrl = "http://localhost:5089/api";
+private const string ApiBaseUrl = "http://localhost:15088/api";
 ```
 
 If running the web app on a different port, update this in `ClaudeLog.Hook.Claude/Program.cs` and republish.
@@ -188,7 +197,7 @@ If running the web app on a different port, update this in `ClaudeLog.Hook.Claud
 
 ### Hook not logging conversations
 
-1. **Check web app is running** on http://localhost:5089
+1. **Check web app is running** on http://localhost:15088
 2. **Verify hook configuration** in `%USERPROFILE%\.claude\settings.json`:
    - Must use proper nested structure for Stop hook
    - Use forward slashes in paths (e.g., `C:/Apps/...`)
@@ -205,15 +214,15 @@ If running the web app on a different port, update this in `ClaudeLog.Hook.Claud
 ### Web app won't start
 
 1. **Check database connection** - Verify SQL Server is running
-2. **Check port** - Ensure port 5089 is not in use (production) or 5088 (development)
+2. **Check port** - Ensure port 15088 is not in use (production) or 15089 (development)
 3. **Check connection string** - Verify in `appsettings.Production.json` or `appsettings.json`
 
 ### No conversations showing in UI
 
 1. **Check database** - Query `SELECT * FROM dbo.Conversations`
 2. **Check browser console** - Look for JavaScript errors
-3. **Check API** - Visit http://localhost:5089/api/entries directly
-4. **Test API page** - Visit http://localhost:5089/Test for manual testing
+3. **Check API** - Visit http://localhost:15088/api/entries directly
+4. **Test API page** - Visit http://localhost:15088/Test for manual testing
 
 ## Development
 

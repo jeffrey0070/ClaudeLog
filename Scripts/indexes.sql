@@ -1,5 +1,11 @@
+-- ========================================
 -- ClaudeLog Database Indexes
--- Database: ClaudeLog
+-- ========================================
+-- Performance optimization indexes for common queries
+-- - Ordering by CreatedAt (descending for newest first)
+-- - Filtering by SectionId, IsDeleted, IsFavorite
+-- - Searching by Title
+-- ========================================
 
 USE ClaudeLog;
 GO
@@ -71,6 +77,26 @@ END
 ELSE
 BEGIN
     PRINT 'Index IX_ErrorLogs_Source_CreatedAt already exists.';
+END
+GO
+
+-- ========================================
+-- Index on Conversations.IsDeleted
+-- ========================================
+-- Optimizes filtering by deleted/active entries
+-- INCLUDE clause adds IsFavorite for covering index
+-- ========================================
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Conversations_IsDeleted' AND object_id = OBJECT_ID('dbo.Conversations'))
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_Conversations_IsDeleted
+    ON dbo.Conversations(IsDeleted)
+    INCLUDE (IsFavorite);
+
+    PRINT 'Index IX_Conversations_IsDeleted created successfully.';
+END
+ELSE
+BEGIN
+    PRINT 'Index IX_Conversations_IsDeleted already exists.';
 END
 GO
 

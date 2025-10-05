@@ -20,8 +20,8 @@ html, body {
 
 /* Entry list item styling */
 .entry-item {
-  cursor: pointer;
   transition: background-color 0.2s;
+  padding: 0.4rem 0.5rem !important;
 }
 
 .entry-item:hover {
@@ -33,11 +33,35 @@ html, body {
   border-left: 3px solid #0d6efd;
 }
 
+.entry-item.deleted-entry {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
 .entry-title {
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Icon buttons in entry list */
+.favorite-btn, .delete-btn {
+  font-size: 1.1rem;
+  line-height: 1;
+  text-decoration: none !important;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.favorite-btn:hover, .delete-btn:hover {
+  opacity: 1;
+  text-decoration: none !important;
+}
+
+.entry-item:hover .favorite-btn,
+.entry-item:hover .delete-btn {
+  opacity: 0.8;
 }
 
 /* Section header styling */
@@ -114,9 +138,31 @@ html, body {
   overflow-wrap: break-word;
 }
 
-/* Question and response boxes */
+/* Question and response content boxes */
 #question, #response {
+  padding: 0.5rem !important;
   word-wrap: break-word;
   overflow-wrap: break-word;
-  white-space: pre-wrap;
+  white-space: pre-line;
+}
+
+/* Reset all markdown elements - no top margin/padding, small bottom margin */
+#question p, #question h1, #question h2, #question h3, #question h4, #question h5, #question h6, #question ul, #question ol, #question li,
+#response p, #response h1, #response h2, #response h3, #response h4, #response h5, #response h6, #response ul, #response ol, #response li {
+  margin: 0 0 0.5rem 0 !important;
+  padding: 0 !important;
+}
+
+/* No margin on last element */
+#question *:last-child,
+#response *:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Make all headings same size as regular text */
+#question h1, #question h2, #question h3, #question h4, #question h5, #question h6,
+#response h1, #response h2, #response h3, #response h4, #response h5, #response h6 {
+  font-size: 1em !important;
+  font-weight: 600 !important;
+  line-height: 1.5 !important;
 }

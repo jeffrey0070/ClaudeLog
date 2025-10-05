@@ -17,15 +17,21 @@ Automatically logs Claude Code CLI conversations to SQL Server with a web UI for
 ### Completed Tasks
 - ✅ Full implementation of web app (ASP.NET Core 9.0 + Razor Pages)
 - ✅ Database schema created (Sections, Conversations, ErrorLogs)
+- ✅ Database indexes for performance optimization
+- ✅ IsFavorite and IsDeleted columns with filtering support
 - ✅ Claude Code hook integration (Stop hook)
 - ✅ Hook successfully parsing Claude Code v2.0.8 transcript format
-- ✅ Production deployment to `C:/Apps/ClaudeLog.Web` (port 5089)
+- ✅ Production deployment to `C:/Apps/ClaudeLog.Web` (port 15088)
+- ✅ Development environment configured (VS 2022, port 15089)
 - ✅ Hook published to `C:/Apps/ClaudeLog.Hook.Claude`
 - ✅ Hook configured in `~/.claude/settings.json`
-- ✅ Hook tested and working - successfully logged "what is 2+2?" conversation
-- ✅ Git repository initialized with initial commit
-- ✅ Comprehensive README.md created
+- ✅ Hook tested and working - conversations logging successfully
+- ✅ Git repository initialized with commits
+- ✅ Comprehensive documentation (README, PROJECT_PLAN, CLAUDE.md)
 - ✅ `.gitignore` configured
+- ✅ UI improvements: inline favorite/delete buttons, compact layout
+- ✅ Graceful shutdown handling (Ctrl+C)
+- ✅ Whitespace trimming and markdown rendering optimization
 
 ## 🎯 What Needs to Be Done Next
 
@@ -89,6 +95,21 @@ ClaudeLog.Hook.Claude
    - Changed from `ORDER BY s.CreatedAt DESC, c.CreatedAt ASC`
    - To `ORDER BY s.CreatedAt DESC, c.CreatedAt DESC`
    - Now shows newest conversations first within each section
+
+3. **Added favorite/delete functionality** - Database and UI updates:
+   - Added IsFavorite and IsDeleted columns to Conversations table
+   - Created migration script and updated schema.sql
+   - Added API endpoints: PATCH /api/entries/{id}/favorite and /api/entries/{id}/deleted
+   - Added inline icon buttons (⭐/☆ and 🗑️/↩️) in conversation list
+   - Moved filters to left panel for better UX
+
+4. **UI/UX improvements**:
+   - Compact layout with reduced padding and whitespace
+   - Fixed overflow issues in right panel
+   - Optimized markdown rendering with proper spacing
+   - Added graceful shutdown with Ctrl+C handling
+   - Trimmed whitespace from questions and responses
+   - Added startup information display
 
 ## How to Start the System
 

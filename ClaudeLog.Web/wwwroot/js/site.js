@@ -1,12 +1,20 @@
 // ClaudeLog - Client-side JavaScript
+// Handles UI interactions, API calls, and conversation display
 
+// State management
 let currentPage = 1;
 const pageSize = 200;
 let currentSearch = '';
 let selectedEntryId = null;
 let allEntries = [];
+let includeDeleted = false;
+let showFavoritesOnly = false;
 
-// Debounce function for search
+/**
+ * Debounce function to limit API calls during search typing
+ * @param {Function} func - Function to debounce
+ * @param {number} wait - Wait time in milliseconds (300ms for search)
+ */
 function debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {
@@ -19,10 +27,15 @@ function debounce(func, wait) {
     };
 }
 
-// Load entries from API
+/**
+ * Loads conversation entries from the API with filtering and pagination.
+ * @param {string} search - Search query text
+ * @param {number} page - Page number (1-indexed)
+ * @param {boolean} append - If true, appends to existing list (for "Load More")
+ */
 async function loadEntries(search = '', page = 1, append = false) {
     try {
-        const url = `/api/entries?search=${encodeURIComponent(search)}&page=${page}&pageSize=${pageSize}`;
+        const url = `/api/entries?search=${encodeURIComponent(search)}&page=${page}&pageSize=${pageSize}&includeDeleted=${includeDeleted}&showFavoritesOnly=${showFavoritesOnly}`;
         const response = await fetch(url);
         const entries = await response.json();
 
@@ -34,7 +47,7 @@ async function loadEntries(search = '', page = 1, append = false) {
             renderEntriesList(allEntries);
         }
 
-        // Show/hide load more button
+        // Show/hide load more button (shown only if full page returned)
         document.getElementById('loadMore').style.display =
             entries.length === pageSize ? 'block' : 'none';
 
@@ -46,7 +59,22 @@ async function loadEntries(search = '', page = 1, append = false) {
     }
 }
 
-// Render entries list grouped by section
+/**
+ * Applies filter checkboxes and reloads the conversation list.
+ * Called when "Show Deleted" or "Favorites Only" checkboxes change.
+ */
+function applyFilters() {
+    includeDeleted = document.getElementById('showDeleted').checked;
+    showFavoritesOnly = document.getElementById('showFavoritesOnly').checked;
+    loadEntries(currentSearch, 1, false);
+}
+
+/**
+ * Renders the conversation list grouped by CLI session (section).
+ * Each section shows date/time and tool (Claude Code).
+ * Each entry has inline favorite/delete buttons.
+ * @param {Array} entries - Array of EntryListDto objects from API
+ */
 function renderEntriesList(entries) {
     const container = document.getElementById('entriesList');
 
@@ -55,7 +83,7 @@ function renderEntriesList(entries) {
         return;
     }
 
-    // Group by section
+    // Group by section (CLI session)
     const sections = {};
     entries.forEach(entry => {
         if (!sections[entry.sectionId]) {
@@ -68,7 +96,7 @@ function renderEntriesList(entries) {
         sections[entry.sectionId].entries.push(entry);
     });
 
-    // Sort sections by date desc
+    // Sort sections by date desc (newest first)
     const sortedSections = Object.entries(sections).sort((a, b) =>
         new Date(b[1].createdAt) - new Date(a[1].createdAt)
     );
@@ -90,12 +118,28 @@ function renderEntriesList(entries) {
             const entryTime = new Date(entry.createdAt).toLocaleTimeString();
             const entryDateTime = `${entryDate} ${entryTime}`;
             const isSelected = entry.id === selectedEntryId;
+            const favoriteIcon = entry.isFavorite ? '⭐' : '☆';
+            const deleteIcon = entry.isDeleted ? '↩️' : '🗑️';
+            const deleteTitle = entry.isDeleted ? 'Restore' : 'Delete';
             html += `
-                <div class="entry-item p-2 border-bottom ${isSelected ? 'selected' : ''}"
-                     onclick="selectEntry(${entry.id})"
+                <div class="entry-item p-2 border-bottom ${isSelected ? 'selected' : ''} ${entry.isDeleted ? 'deleted-entry' : ''}"
                      data-entry-id="${entry.id}"
                      title="${entryDateTime}">
-                    <div class="entry-title">${escapeHtml(entry.title)}</div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-sm btn-link p-0 favorite-btn"
+                                onclick="event.stopPropagation(); toggleFavoriteInline(${entry.id}, ${!entry.isFavorite})"
+                                title="${entry.isFavorite ? 'Remove from favorites' : 'Add to favorites'}">
+                            ${favoriteIcon}
+                        </button>
+                        <div class="entry-title flex-grow-1" onclick="selectEntry(${entry.id})" style="cursor: pointer;">
+                            ${escapeHtml(entry.title)}
+                        </div>
+                        <button class="btn btn-sm btn-link p-0 delete-btn"
+                                onclick="event.stopPropagation(); toggleDeletedInline(${entry.id}, ${!entry.isDeleted})"
+                                title="${deleteTitle}">
+                            ${deleteIcon}
+                        </button>
+                    </div>
                 </div>
             `;
         });
@@ -133,15 +177,33 @@ async function selectEntry(id) {
 function renderEntryDetail(entry) {
     const detailView = document.getElementById('detailView');
     const timestamp = new Date(entry.createdAt).toLocaleString();
+    const question = (entry.question || '').trim();
+    const response = (entry.response || '').trim();
+    const title = (entry.title || '').trim();
+
+    const favoriteIcon = entry.isFavorite ? '⭐' : '☆';
+    const favoriteClass = entry.isFavorite ? 'btn-warning' : 'btn-outline-warning';
+    const deleteClass = entry.isDeleted ? 'btn-danger' : 'btn-outline-danger';
+    const deleteText = entry.isDeleted ? 'Restore' : 'Delete';
 
     detailView.innerHTML = `
         <div class="entry-detail">
-            <div class="mb-3">
-                <h4 id="entryTitle" class="editable-title" onclick="editTitle(${entry.id}, this)">
-                    ${escapeHtml(entry.title)}
-                </h4>
-                <div class="small text-muted">
-                    ${timestamp} | Session: ${entry.sectionId} | ${entry.tool}
+            <div class="mb-3 d-flex justify-content-between align-items-start">
+                <div style="flex: 1;">
+                    <h4 id="entryTitle" class="editable-title" onclick="editTitle(${entry.id}, this)">
+                        ${escapeHtml(title)}
+                    </h4>
+                    <div class="small text-muted">
+                        ${timestamp} | Session: ${entry.sectionId} | ${entry.tool}
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm ${favoriteClass}" onclick="toggleFavorite(${entry.id}, ${!entry.isFavorite})" title="${entry.isFavorite ? 'Remove from favorites' : 'Add to favorites'}">
+                        ${favoriteIcon} Favorite
+                    </button>
+                    <button class="btn btn-sm ${deleteClass}" onclick="toggleDeleted(${entry.id}, ${!entry.isDeleted})" title="${entry.isDeleted ? 'Restore this entry' : 'Mark as deleted'}">
+                        ${deleteText}
+                    </button>
                 </div>
             </div>
 
@@ -152,8 +214,8 @@ function renderEntryDetail(entry) {
                         Copy
                     </button>
                 </div>
-                <div id="question" class="p-3 bg-light border rounded">
-                    ${escapeHtml(entry.question)}
+                <div id="question" class="p-3 bg-light border rounded" data-raw="${escapeHtml(question)}">
+                    ${escapeHtml(question)}
                 </div>
             </div>
 
@@ -169,8 +231,8 @@ function renderEntryDetail(entry) {
                         </button>
                     </div>
                 </div>
-                <div id="response" class="p-3 bg-light border rounded markdown-content" data-raw="${escapeHtml(entry.response)}">
-                    ${renderMarkdown(entry.response)}
+                <div id="response" class="p-3 bg-light border rounded markdown-content" data-raw="${escapeHtml(response)}">
+                    ${renderMarkdown(response)}
                 </div>
             </div>
         </div>
@@ -269,6 +331,96 @@ function showToast(message) {
 // Load more entries
 function loadMoreEntries() {
     loadEntries(currentSearch, currentPage + 1, true);
+}
+
+// Toggle favorite status (from detail view)
+async function toggleFavorite(id, isFavorite) {
+    try {
+        const response = await fetch(`/api/entries/${id}/favorite`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isFavorite })
+        });
+
+        if (response.ok) {
+            showToast(isFavorite ? 'Added to favorites!' : 'Removed from favorites!');
+            // Reload current entry to update UI
+            await selectEntry(id);
+            // Reload list to reflect changes
+            loadEntries(currentSearch, 1, false);
+        }
+    } catch (error) {
+        console.error('Failed to toggle favorite:', error);
+        logError('UI', 'Failed to toggle favorite', error.toString());
+    }
+}
+
+// Toggle favorite status (inline from list)
+async function toggleFavoriteInline(id, isFavorite) {
+    try {
+        const response = await fetch(`/api/entries/${id}/favorite`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isFavorite })
+        });
+
+        if (response.ok) {
+            // Reload list to reflect changes
+            loadEntries(currentSearch, 1, false);
+            // If this entry is currently selected, refresh detail view
+            if (selectedEntryId === id) {
+                await selectEntry(id);
+            }
+        }
+    } catch (error) {
+        console.error('Failed to toggle favorite:', error);
+        logError('UI', 'Failed to toggle favorite', error.toString());
+    }
+}
+
+// Toggle deleted status (from detail view)
+async function toggleDeleted(id, isDeleted) {
+    try {
+        const response = await fetch(`/api/entries/${id}/deleted`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isDeleted })
+        });
+
+        if (response.ok) {
+            showToast(isDeleted ? 'Marked as deleted!' : 'Restored!');
+            // Reload current entry to update UI
+            await selectEntry(id);
+            // Reload list to reflect changes
+            loadEntries(currentSearch, 1, false);
+        }
+    } catch (error) {
+        console.error('Failed to toggle deleted:', error);
+        logError('UI', 'Failed to toggle deleted', error.toString());
+    }
+}
+
+// Toggle deleted status (inline from list)
+async function toggleDeletedInline(id, isDeleted) {
+    try {
+        const response = await fetch(`/api/entries/${id}/deleted`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isDeleted })
+        });
+
+        if (response.ok) {
+            // Reload list to reflect changes
+            loadEntries(currentSearch, 1, false);
+            // If this entry is currently selected, refresh detail view
+            if (selectedEntryId === id) {
+                await selectEntry(id);
+            }
+        }
+    } catch (error) {
+        console.error('Failed to toggle deleted:', error);
+        logError('UI', 'Failed to toggle deleted', error.toString());
+    }
 }
 
 // Log error to API
