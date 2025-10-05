@@ -6,14 +6,11 @@
 
 1. **CONTEXT.md** (this file) - Current project state and context
 2. **README.md** - Complete setup instructions and documentation
-3. **PROJECT_PLAN.md** - Original project plan and future roadmap
-4. **INTEGRATION_COMPLETE.md** - Integration testing notes
+3. **PROJECT_PLAN.md** - Original requirements and future roadmap
 
-## 📋 Project Summary
+## 📋 What This Project Does
 
-**ClaudeLog** is an automatic conversation logging system for Claude Code CLI. It captures every Q&A automatically and provides a web UI for browsing, searching, and reviewing conversation history.
-
-**Tech Stack**: ASP.NET Core 9.0, SQL Server, ADO.NET, Razor Pages, Minimal APIs, Bootstrap 5
+Automatically logs Claude Code CLI conversations to SQL Server with a web UI for browsing/searching. See PROJECT_PLAN.md for full requirements.
 
 ## ✅ What Has Been Done
 
@@ -39,12 +36,8 @@
    gh repo create ClaudeLog --public --source=. --description="Automatic conversation logger for Claude Code CLI with web-based browsing interface" --push
    ```
 
-### Future Enhancements (Optional)
-- Code syntax highlighting in responses
-- Export functionality (CSV/JSON)
-- Full-text search for Chinese content
-- Error viewer page in web UI
-- See PROJECT_PLAN.md for Phase 2/3 features
+### Future Enhancements
+See PROJECT_PLAN.md Phase 2/3 for planned features.
 
 ## Key Technical Details
 
