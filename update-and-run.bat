@@ -3,6 +3,7 @@ REM ============================================
 REM ClaudeLog - Update and Run Script
 REM ============================================
 REM Stops app on port 15088, builds, publishes, and starts
+REM Can be run from anywhere
 REM ============================================
 
 echo.
@@ -42,8 +43,14 @@ echo Step 2: Cleaning and building project...
 echo ============================================
 echo.
 
-cd /d "%~dp0"
-cd ClaudeLog.Web
+REM Navigate to source directory (absolute path)
+cd /d "C:\Users\jeffr\source\repos\ClaudeLog\ClaudeLog.Web"
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: Cannot find source directory!
+    echo Expected: C:\Users\jeffr\source\repos\ClaudeLog\ClaudeLog.Web
+    pause
+    exit /b 1
+)
 dotnet clean
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: Clean failed!
