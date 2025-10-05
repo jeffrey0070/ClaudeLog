@@ -45,7 +45,8 @@ html, body {
   position: sticky;
   top: 0;
   z-index: 10;
-  background-color: #f8f9fa !important;
+  background-color: #d1e7dd !important;
+  color: #0f5132 !important;
 }
 
 /* Editable title */
@@ -89,4 +90,33 @@ html, body {
 /* Scrollable areas */
 .conversation-list, .conversation-detail {
   height: 100%;
+}
+
+/* Prevent panels from overtaking space */
+.conversation-list {
+  flex-shrink: 0;
+}
+
+.conversation-detail {
+  min-width: 0;
+}
+
+/* Handle long text in detail view */
+.entry-detail {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.entry-detail pre,
+.entry-detail code {
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: break-word;
+}
+
+/* Question and response boxes */
+#question, #response {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
 }

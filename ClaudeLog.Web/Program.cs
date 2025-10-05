@@ -13,15 +13,6 @@ builder.Services.AddSingleton<Db>();
 builder.Services.AddSingleton<MarkdownRenderer>();
 builder.Services.AddScoped<ErrorLogger>();
 
-// Configure Kestrel - use appsettings for Production, fallback to 5088 for Development
-if (builder.Environment.IsDevelopment())
-{
-    builder.WebHost.ConfigureKestrel(options =>
-    {
-        options.ListenLocalhost(5088);
-    });
-}
-
 var app = builder.Build();
 
 // Use custom error handling middleware

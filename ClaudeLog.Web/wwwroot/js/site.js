@@ -76,22 +76,25 @@ function renderEntriesList(entries) {
     let html = '';
     sortedSections.forEach(([sectionId, section]) => {
         const sectionDate = new Date(section.createdAt).toLocaleDateString();
+        const sectionTime = new Date(section.createdAt).toLocaleTimeString();
         html += `
             <div class="section-group mb-3">
                 <div class="section-header p-2 bg-light fw-bold text-muted small">
-                    ${section.tool} - ${sectionDate}
+                    ${sectionDate} ${sectionTime} - ${section.tool}
                 </div>
                 <div class="entries-in-section">
         `;
 
         section.entries.forEach(entry => {
             const entryDate = new Date(entry.createdAt).toLocaleDateString();
+            const entryTime = new Date(entry.createdAt).toLocaleTimeString();
+            const entryDateTime = `${entryDate} ${entryTime}`;
             const isSelected = entry.id === selectedEntryId;
             html += `
                 <div class="entry-item p-2 border-bottom ${isSelected ? 'selected' : ''}"
                      onclick="selectEntry(${entry.id})"
-                     data-entry-id="${entry.id}">
-                    <div class="small text-muted">${entryDate}</div>
+                     data-entry-id="${entry.id}"
+                     title="${entryDateTime}">
                     <div class="entry-title">${escapeHtml(entry.title)}</div>
                 </div>
             `;

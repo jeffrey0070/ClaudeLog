@@ -4,6 +4,34 @@
 
 When you start a new session in this project, **READ `CONTEXT.md` FIRST** to understand the project state.
 
+## 🔄 Update the App
+
+When the user asks to **"update the app"**, perform these steps:
+
+1. **Stop the running app**
+   ```bash
+   taskkill //F //IM ClaudeLog.Web.exe
+   ```
+
+2. **Rebuild the project**
+   ```bash
+   cd ClaudeLog.Web && dotnet clean && dotnet build
+   ```
+
+3. **Publish to deployment folder**
+   ```bash
+   cd ClaudeLog.Web && dotnet publish -c Release -o "C:/Apps/ClaudeLog.Web"
+   ```
+
+   *Note: If publish fails due to locked files, kill the process by PID and retry.*
+
+4. **Start the app**
+   ```bash
+   cd "C:/Apps/ClaudeLog.Web" && start ClaudeLog.Web.exe
+   ```
+
+**Deployment Location:** `C:\Apps\ClaudeLog.Web`
+
 ## 📝 Documentation Preferences
 
 This project follows a **single source of truth** principle to avoid duplication and conflicts:
