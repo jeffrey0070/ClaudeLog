@@ -24,17 +24,15 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr :15088 ^| findstr LISTENING')
 if defined PID (
     echo Found process using port 15088 (PID: %PID%)
     echo Killing process...
-    taskkill /F /PID %PID%
+    taskkill /F /PID %PID% 2>nul
     if %ERRORLEVEL% EQU 0 (
         echo Process killed successfully.
     ) else (
-        echo Failed to kill process. You may need to run as Administrator.
-        pause
-        exit /b 1
+        echo Warning: Could not kill process. Continuing anyway...
     )
     timeout /t 2 /nobreak >nul
 ) else (
-    echo No process found on port 15088.
+    echo No process found on port 15088. Continuing...
 )
 
 echo.
@@ -83,19 +81,9 @@ echo ============================================
 echo Step 4: Starting ClaudeLog.Web...
 echo ============================================
 echo.
+echo Access at: http://localhost:15088
+echo Press Ctrl+C to stop the application
+echo.
 
 cd "C:\Apps\ClaudeLog.Web"
-start ClaudeLog.Web.exe
-
-timeout /t 3 /nobreak >nul
-
-echo.
-echo ============================================
-echo SUCCESS!
-echo ============================================
-echo.
-echo ClaudeLog is starting...
-echo Access at: http://localhost:15088
-echo.
-echo Press any key to exit this window...
-pause >nul
+ClaudeLog.Web.exe
