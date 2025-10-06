@@ -105,10 +105,19 @@ function renderEntriesList(entries) {
     sortedSections.forEach(([sectionId, section]) => {
         const sectionDate = new Date(section.createdAt).toLocaleDateString();
         const sectionTime = new Date(section.createdAt).toLocaleTimeString();
+        const sectionDeleted = section.entries[0]?.sectionIsDeleted || false;
+        const sectionDeleteIcon = sectionDeleted ? '↩️' : '🗑️';
+        const sectionDeleteTitle = sectionDeleted ? 'Restore section' : 'Delete section';
+        const sectionClass = sectionDeleted ? 'deleted-entry' : '';
         html += `
             <div class="section-group mb-3">
-                <div class="section-header p-2 bg-light fw-bold text-muted small">
-                    ${sectionDate} ${sectionTime} - ${section.tool}
+                <div class="section-header p-2 bg-light fw-bold text-muted small d-flex align-items-center ${sectionClass}">
+                    <span class="flex-grow-1">${sectionDate} ${sectionTime} - ${section.tool}</span>
+                    <button class="btn btn-sm btn-link p-0 delete-btn"
+                            onclick="event.stopPropagation(); toggleSectionDeleted('${sectionId}', ${!sectionDeleted})"
+                            title="${sectionDeleteTitle}">
+                        ${sectionDeleteIcon}
+                    </button>
                 </div>
                 <div class="entries-in-section">
         `;
@@ -420,6 +429,26 @@ async function toggleDeletedInline(id, isDeleted) {
     } catch (error) {
         console.error('Failed to toggle deleted:', error);
         logError('UI', 'Failed to toggle deleted', error.toString());
+    }
+}
+
+// Toggle section deleted status
+async function toggleSectionDeleted(sectionId, isDeleted) {
+    try {
+        const response = await fetch(`/api/sections/${sectionId}/deleted`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isDeleted })
+        });
+
+        if (response.ok) {
+            showToast(isDeleted ? 'Section deleted!' : 'Section restored!');
+            // Reload list to reflect changes
+            loadEntries(currentSearch, 1, false);
+        }
+    } catch (error) {
+        console.error('Failed to toggle section deleted:', error);
+        logError('UI', 'Failed to toggle section deleted', error.toString());
     }
 }
 

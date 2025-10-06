@@ -22,7 +22,8 @@ public record EntryListDto(
     DateTime SectionCreatedAt,
     string Tool,
     bool IsFavorite,
-    bool IsDeleted
+    bool IsDeleted,
+    bool SectionIsDeleted
 );
 
 public record EntryDetailDto(

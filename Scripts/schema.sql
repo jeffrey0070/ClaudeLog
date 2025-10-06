@@ -4,6 +4,11 @@
 -- Database: ClaudeLog
 -- SQL Server with Windows Integrated Security
 -- Creates tables for storing Claude Code conversation logs
+--
+-- IMPORTANT: This script is for creating tables from scratch.
+-- If you need to change the schema, simply modify this file.
+-- DO NOT add upgrade/migration logic here.
+-- For upgrades to existing databases, create separate migration scripts.
 -- ========================================
 
 USE ClaudeLog;
@@ -20,6 +25,7 @@ BEGIN
     CREATE TABLE dbo.Sections (
         SectionId UNIQUEIDENTIFIER PRIMARY KEY,  -- Session GUID from Claude Code
         Tool NVARCHAR(32) NOT NULL,              -- CLI tool name (e.g., "Claude Code")
+        IsDeleted BIT NOT NULL DEFAULT 0,        -- Soft delete (can be restored)
         CreatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME()  -- Local timestamp
     );
 
@@ -58,20 +64,6 @@ END
 ELSE
 BEGIN
     PRINT 'Table dbo.Conversations already exists.';
-
-    -- Add IsFavorite column if missing (for existing installations)
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Conversations') AND name = 'IsFavorite')
-    BEGIN
-        ALTER TABLE dbo.Conversations ADD IsFavorite BIT NOT NULL DEFAULT 0;
-        PRINT 'Added IsFavorite column to Conversations table.';
-    END
-
-    -- Add IsDeleted column if missing (for existing installations)
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Conversations') AND name = 'IsDeleted')
-    BEGIN
-        ALTER TABLE dbo.Conversations ADD IsDeleted BIT NOT NULL DEFAULT 0;
-        PRINT 'Added IsDeleted column to Conversations table.';
-    END
 END
 GO
 

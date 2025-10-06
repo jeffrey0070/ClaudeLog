@@ -1,15 +1,15 @@
-using ClaudeLog.Web.Data;
-using Microsoft.Data.SqlClient;
+using ClaudeLog.Data.Models;
+using ClaudeLog.Data.Repositories;
 
 namespace ClaudeLog.Web.Services;
 
 public class ErrorLogger
 {
-    private readonly Db _db;
+    private readonly ErrorRepository _errorRepository;
 
-    public ErrorLogger(Db db)
+    public ErrorLogger(ErrorRepository errorRepository)
     {
-        _db = db;
+        _errorRepository = errorRepository;
     }
 
     public async Task<long?> LogErrorAsync(
@@ -22,20 +22,17 @@ public class ErrorLogger
     {
         try
         {
-            using var conn = _db.CreateConnection();
-            await conn.OpenAsync();
+            var request = new LogErrorRequest(
+                source,
+                message,
+                detail,
+                path,
+                sectionId?.ToString(),
+                entryId,
+                DateTime.Now);
 
-            using var cmd = new SqlCommand(ErrorLogQueries.InsertError, conn);
-            cmd.Parameters.AddWithValue("@Source", source);
-            cmd.Parameters.AddWithValue("@Message", message);
-            cmd.Parameters.AddWithValue("@Detail", (object?)detail ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@Path", (object?)path ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@SectionId", (object?)sectionId ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@EntryId", (object?)entryId ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
-
-            var result = await cmd.ExecuteScalarAsync();
-            return result != null ? Convert.ToInt64(result) : null;
+            var response = await _errorRepository.LogErrorAsync(request);
+            return response.Id;
         }
         catch
         {

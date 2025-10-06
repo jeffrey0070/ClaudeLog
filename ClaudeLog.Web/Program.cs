@@ -1,5 +1,4 @@
 using ClaudeLog.Web.Api;
-using ClaudeLog.Web.Data;
 using ClaudeLog.Web.Middleware;
 using ClaudeLog.Web.Services;
 
@@ -15,8 +14,7 @@ builder.Services.AddScoped<ClaudeLog.Data.Repositories.SectionRepository>();
 builder.Services.AddScoped<ClaudeLog.Data.Repositories.EntryRepository>();
 builder.Services.AddScoped<ClaudeLog.Data.Repositories.ErrorRepository>();
 
-// Register web services (legacy Db for backwards compatibility)
-builder.Services.AddSingleton<Db>();
+// Register web services
 builder.Services.AddSingleton<MarkdownRenderer>();
 builder.Services.AddScoped<ErrorLogger>();
 

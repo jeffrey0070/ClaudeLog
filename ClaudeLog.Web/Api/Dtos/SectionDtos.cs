@@ -12,5 +12,8 @@ public record SectionDto(
     Guid SectionId,
     string Tool,
     DateTime CreatedAt,
-    int Count
+    int Count,
+    bool IsDeleted
 );
+
+public record UpdateSectionDeletedRequest(bool IsDeleted);

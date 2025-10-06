@@ -11,6 +11,7 @@ public static class SectionsEndpoints
 
         group.MapPost("/", CreateSection);
         group.MapGet("/", GetSections);
+        group.MapPatch("/{sectionId}/deleted", UpdateSectionDeleted);
     }
 
     private static async Task<IResult> CreateSection(
@@ -32,12 +33,29 @@ public static class SectionsEndpoints
         SectionRepository repository,
         int days = 30,
         int page = 1,
-        int pageSize = 50)
+        int pageSize = 50,
+        bool includeDeleted = false)
     {
         try
         {
-            var sections = await repository.GetSectionsAsync(days, page, pageSize);
+            var sections = await repository.GetSectionsAsync(days, page, pageSize, includeDeleted);
             return Results.Ok(sections);
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem(ex.Message);
+        }
+    }
+
+    private static async Task<IResult> UpdateSectionDeleted(
+        Guid sectionId,
+        UpdateSectionDeletedRequest request,
+        SectionRepository repository)
+    {
+        try
+        {
+            await repository.UpdateDeletedAsync(sectionId, request.IsDeleted);
+            return Results.NoContent();
         }
         catch (Exception ex)
         {
