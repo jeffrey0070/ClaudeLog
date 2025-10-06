@@ -8,7 +8,14 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorPages();
 
-// Register custom services
+// Register data layer services
+var connectionString = builder.Configuration.GetConnectionString("ClaudeLog");
+builder.Services.AddSingleton(new ClaudeLog.Data.DbContext(connectionString));
+builder.Services.AddScoped<ClaudeLog.Data.Repositories.SectionRepository>();
+builder.Services.AddScoped<ClaudeLog.Data.Repositories.EntryRepository>();
+builder.Services.AddScoped<ClaudeLog.Data.Repositories.ErrorRepository>();
+
+// Register web services (legacy Db for backwards compatibility)
 builder.Services.AddSingleton<Db>();
 builder.Services.AddSingleton<MarkdownRenderer>();
 builder.Services.AddScoped<ErrorLogger>();

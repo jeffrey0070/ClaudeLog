@@ -1,7 +1,5 @@
-using ClaudeLog.Web.Api.Dtos;
-using ClaudeLog.Web.Data;
-using ClaudeLog.Web.Services;
-using Microsoft.Data.SqlClient;
+using ClaudeLog.Data.Models;
+using ClaudeLog.Data.Repositories;
 
 namespace ClaudeLog.Web.Api;
 
@@ -29,29 +27,12 @@ public static class EntriesEndpoints
     /// </summary>
     private static async Task<IResult> CreateEntry(
         CreateEntryRequest request,
-        Db db)
+        EntryRepository repository)
     {
         try
         {
-            var sectionId = Guid.Parse(request.SectionId);
-            var question = request.Question?.Trim() ?? "";
-            var response = request.Response?.Trim() ?? "";
-            var title = TitleGenerator.MakeTitle(question);
-            var createdAt = DateTime.Now;
-
-            using var conn = db.CreateConnection();
-            await conn.OpenAsync();
-
-            using var cmd = new SqlCommand(Queries.InsertConversation, conn);
-            cmd.Parameters.AddWithValue("@SectionId", sectionId);
-            cmd.Parameters.AddWithValue("@Title", title);
-            cmd.Parameters.AddWithValue("@Question", question);
-            cmd.Parameters.AddWithValue("@Response", response);
-            cmd.Parameters.AddWithValue("@CreatedAt", createdAt);
-
-            var id = await cmd.ExecuteScalarAsync();
-
-            return Results.Ok(new CreateEntryResponse(Convert.ToInt64(id)));
+            var response = await repository.CreateAsync(request);
+            return Results.Ok(response);
         }
         catch (Exception ex)
         {
@@ -64,7 +45,7 @@ public static class EntriesEndpoints
     /// Supports search, deleted/favorite filters, and pagination.
     /// </summary>
     private static async Task<IResult> GetEntries(
-        Db db,
+        EntryRepository repository,
         string? search = null,
         int page = 1,
         int pageSize = 200,
@@ -73,35 +54,7 @@ public static class EntriesEndpoints
     {
         try
         {
-            var entries = new List<EntryListDto>();
-            var searchPattern = string.IsNullOrWhiteSpace(search) ? null : $"%{search}%";
-
-            using var conn = db.CreateConnection();
-            await conn.OpenAsync();
-
-            using var cmd = new SqlCommand(Queries.GetConversations, conn);
-            cmd.Parameters.AddWithValue("@Search", (object?)search ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@SearchPattern", (object?)searchPattern ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@Offset", (page - 1) * pageSize);
-            cmd.Parameters.AddWithValue("@PageSize", pageSize);
-            cmd.Parameters.AddWithValue("@IncludeDeleted", includeDeleted);
-            cmd.Parameters.AddWithValue("@ShowFavoritesOnly", showFavoritesOnly);
-
-            using var reader = await cmd.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
-            {
-                entries.Add(new EntryListDto(
-                    reader.GetInt64(0),      // Id
-                    reader.GetString(1),     // Title
-                    reader.GetDateTime(2),   // CreatedAt
-                    reader.GetGuid(3),       // SectionId
-                    reader.GetDateTime(4),   // SectionCreatedAt
-                    reader.GetString(5),     // Tool
-                    reader.GetBoolean(6),    // IsFavorite
-                    reader.GetBoolean(7)     // IsDeleted
-                ));
-            }
-
+            var entries = await repository.GetEntriesAsync(search, includeDeleted, showFavoritesOnly, page, pageSize);
             return Results.Ok(entries);
         }
         catch (Exception ex)
@@ -112,32 +65,13 @@ public static class EntriesEndpoints
 
     private static async Task<IResult> GetEntryById(
         long id,
-        Db db)
+        EntryRepository repository)
     {
         try
         {
-            using var conn = db.CreateConnection();
-            await conn.OpenAsync();
-
-            using var cmd = new SqlCommand(Queries.GetConversationById, conn);
-            cmd.Parameters.AddWithValue("@Id", id);
-
-            using var reader = await cmd.ExecuteReaderAsync();
-            if (await reader.ReadAsync())
+            var entry = await repository.GetEntryByIdAsync(id);
+            if (entry != null)
             {
-                var entry = new EntryDetailDto(
-                    reader.GetInt64(0),      // Id
-                    reader.GetString(1),     // Title
-                    reader.GetString(2),     // Question
-                    reader.GetString(3),     // Response
-                    reader.GetDateTime(4),   // CreatedAt
-                    reader.GetGuid(5),       // SectionId
-                    reader.GetString(6),     // Tool
-                    reader.GetDateTime(7),   // SectionCreatedAt
-                    reader.GetBoolean(8),    // IsFavorite
-                    reader.GetBoolean(9)     // IsDeleted
-                );
-
                 return Results.Ok(entry);
             }
 
@@ -152,19 +86,11 @@ public static class EntriesEndpoints
     private static async Task<IResult> UpdateTitle(
         long id,
         UpdateTitleRequest request,
-        Db db)
+        EntryRepository repository)
     {
         try
         {
-            using var conn = db.CreateConnection();
-            await conn.OpenAsync();
-
-            using var cmd = new SqlCommand(Queries.UpdateConversationTitle, conn);
-            cmd.Parameters.AddWithValue("@Id", id);
-            cmd.Parameters.AddWithValue("@Title", request.Title);
-
-            await cmd.ExecuteNonQueryAsync();
-
+            await repository.UpdateTitleAsync(id, request.Title);
             return Results.Ok(new { ok = true });
         }
         catch (Exception ex)
@@ -176,19 +102,11 @@ public static class EntriesEndpoints
     private static async Task<IResult> UpdateFavorite(
         long id,
         UpdateFavoriteRequest request,
-        Db db)
+        EntryRepository repository)
     {
         try
         {
-            using var conn = db.CreateConnection();
-            await conn.OpenAsync();
-
-            using var cmd = new SqlCommand(Queries.UpdateConversationFavorite, conn);
-            cmd.Parameters.AddWithValue("@Id", id);
-            cmd.Parameters.AddWithValue("@IsFavorite", request.IsFavorite);
-
-            await cmd.ExecuteNonQueryAsync();
-
+            await repository.UpdateFavoriteAsync(id, request.IsFavorite);
             return Results.Ok(new { ok = true });
         }
         catch (Exception ex)
@@ -200,19 +118,11 @@ public static class EntriesEndpoints
     private static async Task<IResult> UpdateDeleted(
         long id,
         UpdateDeletedRequest request,
-        Db db)
+        EntryRepository repository)
     {
         try
         {
-            using var conn = db.CreateConnection();
-            await conn.OpenAsync();
-
-            using var cmd = new SqlCommand(Queries.UpdateConversationDeleted, conn);
-            cmd.Parameters.AddWithValue("@Id", id);
-            cmd.Parameters.AddWithValue("@IsDeleted", request.IsDeleted);
-
-            await cmd.ExecuteNonQueryAsync();
-
+            await repository.UpdateDeletedAsync(id, request.IsDeleted);
             return Results.Ok(new { ok = true });
         }
         catch (Exception ex)

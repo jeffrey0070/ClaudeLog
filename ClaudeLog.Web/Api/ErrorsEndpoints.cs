@@ -1,5 +1,5 @@
-using ClaudeLog.Web.Api.Dtos;
-using ClaudeLog.Web.Services;
+using ClaudeLog.Data.Models;
+using ClaudeLog.Data.Repositories;
 
 namespace ClaudeLog.Web.Api;
 
@@ -12,26 +12,12 @@ public static class ErrorsEndpoints
 
     private static async Task<IResult> LogError(
         LogErrorRequest request,
-        ErrorLogger logger)
+        ErrorRepository repository)
     {
         try
         {
-            Guid? sectionId = null;
-            if (!string.IsNullOrWhiteSpace(request.SectionId))
-            {
-                sectionId = Guid.Parse(request.SectionId);
-            }
-
-            var id = await logger.LogErrorAsync(
-                request.Source,
-                request.Message,
-                request.Detail,
-                request.Path,
-                sectionId,
-                request.EntryId
-            );
-
-            return Results.Ok(new LogErrorResponse(true, id ?? 0));
+            var response = await repository.LogErrorAsync(request);
+            return Results.Ok(response);
         }
         catch (Exception ex)
         {

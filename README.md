@@ -1,4 +1,4 @@
-# ClaudeLog - Conversation Logger for Claude Code
+﻿# ClaudeLog - Conversation Logger for Claude Code
 
 ClaudeLog automatically logs all your Claude Code Q&A conversations to SQL Server and provides a web UI to browse, search, and review them.
 
@@ -21,18 +21,18 @@ ClaudeLog automatically logs all your Claude Code Q&A conversations to SQL Serve
 
 ```
 ClaudeLog/
-├── ClaudeLog.sln                      # Visual Studio solution
-├── ClaudeLog.Web/                     # ASP.NET Core web app
-│   ├── Api/                           # Minimal API endpoints
-│   ├── Data/                          # ADO.NET data access
-│   ├── Services/                      # Business logic
-│   ├── Middleware/                    # Error handling
-│   └── Pages/                         # Razor Pages UI
-├── ClaudeLog.Hook.Claude/             # Claude Code hook
-└── Scripts/                           # SQL scripts
-    ├── schema.sql
-    ├── indexes.sql
-    └── fts.sql (Phase 3)
+â”œâ”€â”€ ClaudeLog.sln                      # Visual Studio solution
+â”œâ”€â”€ ClaudeLog.Web/                     # ASP.NET Core web app
+â”‚   â”œâ”€â”€ Api/                           # Minimal API endpoints
+â”‚   â”œâ”€â”€ Data/                          # ADO.NET data access
+â”‚   â”œâ”€â”€ Services/                      # Business logic
+â”‚   â”œâ”€â”€ Middleware/                    # Error handling
+â”‚   â””â”€â”€ Pages/                         # Razor Pages UI
+â”œâ”€â”€ ClaudeLog.Hook.Claude/             # Claude Code hook
+â””â”€â”€ Scripts/                           # SQL scripts
+    â”œâ”€â”€ schema.sql
+    â”œâ”€â”€ indexes.sql
+    â””â”€â”€ fts.sql (Phase 3)
 ```
 
 ## Setup Instructions
@@ -141,7 +141,7 @@ Development runs on port 15089.
 - **Left Panel**:
   - Shows all conversations grouped by session (newest first)
   - Filter controls: Show Deleted, Favorites Only
-  - Inline buttons: ⭐/☆ for favorites, 🗑️/↩️ for delete/restore
+  - Inline buttons: â­/â˜† for favorites, ðŸ—‘ï¸/â†©ï¸ for delete/restore
   - Hover over titles to see timestamp
 - **Right Panel**: Shows full question and response for selected conversation
 - **Click Title**: Edit title inline (in detail view)
@@ -246,12 +246,12 @@ If running the web app on a different port, update this in `ClaudeLog.Hook.Claud
 ## Roadmap
 
 ### Phase 1 (Current - MVP)
-✅ Web app with API and UI
-✅ Claude Code hook integration
-✅ Search and pagination
-✅ Error logging
-✅ Markdown rendering
-✅ Editable titles
+âœ… Web app with API and UI
+âœ… Claude Code hook integration
+âœ… Search and pagination
+âœ… Error logging
+âœ… Markdown rendering
+âœ… Editable titles
 
 ### Phase 2 (Future)
 - Shared client library (ClaudeLog.Client)
@@ -275,3 +275,27 @@ For issues or questions, check:
 1. Error logs in database: `SELECT * FROM dbo.ErrorLogs ORDER BY CreatedAt DESC`
 2. Browser console for client-side errors
 3. Project plan: `PROJECT_PLAN.md`
+
+## Codex Transcript Hook (Beta)
+
+- Executable: `C:\Apps\ClaudeLog.Hook.Codex\ClaudeLog.Hook.Codex.exe`
+- Modes:
+  - Stdin (preferred): Codex invokes the exe per turn and writes `{ "session_id", "transcript_path", "hook_event_name" }` to stdin. The hook logs the latest user→assistant pair.
+  - Watcher (fallback): run `ClaudeLog.Hook.Codex.exe --watch "%USERPROFILE%\.codex\sessions"` to monitor JSONL transcripts and log turns automatically.
+- Config:
+  - API base: `CLAUDELOG_API_BASE` (default `http://localhost:15088/api`)
+  - State file: `%LOCALAPPDATA%\ClaudeLog\codex_state.json`
+  - Optional root: `CODEX_TRANSCRIPT_PATH` for watcher mode
+- Notes:
+  - Duplicate prevention via SHA-256 hash per transcript
+  - Tolerant parser supports Claude-like and legacy role schemas
+
+### Quick test (stdin mode, fake transcript)
+
+Run this one-liner in PowerShell to simulate a Codex transcript and invoke the hook (uses a new GUID session id):
+
+```
+$tp="$env:TEMP\codex_test.jsonl"; $sid=[guid]::NewGuid().ToString(); Set-Content -Encoding UTF8 -Path $tp -Value '{"type":"user","message":{"content":[{"type":"text","text":"What is 2+2?"}]}}'; Add-Content -Encoding UTF8 -Path $tp -Value '{"type":"assistant","message":{"content":[{"type":"text","text":"4"}]}}'; $j='{"session_id":"'+$sid+'","transcript_path":"'+$tp+'","hook_event_name":"Stop"}'; $j | & 'C:\Apps\ClaudeLog.Hook.Codex\ClaudeLog.Hook.Codex.exe'
+```
+
+Then browse the web UI at `http://localhost:15088` and search for "What is 2+2?".
