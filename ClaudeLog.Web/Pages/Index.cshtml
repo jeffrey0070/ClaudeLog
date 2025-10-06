@@ -8,6 +8,7 @@
     <!-- Search Bar -->
     <div class="search-bar p-2 border-bottom">
         <div class="d-flex gap-2 align-items-center">
+            <button id="toggleLeftPanel" class="btn btn-outline-secondary btn-sm" title="Toggle sidebar (Ctrl+B)">☰</button>
             <input type="text" id="searchInput" class="form-control" placeholder="Search conversations..." style="flex: 1;" />
             <button id="clearSearch" class="btn btn-secondary btn-sm">Clear</button>
             <a href="/Test" class="btn btn-outline-info btn-sm">🧪 Test API</a>
@@ -17,7 +18,7 @@
     <!-- Two-Pane Layout -->
     <div class="d-flex flex-grow-1 overflow-hidden">
         <!-- Left Panel: Question List -->
-        <div class="conversation-list border-end" style="width: 400px; min-width: 400px; flex-shrink: 0; overflow-y: auto; overflow-x: auto;">
+        <div id="leftPanel" class="conversation-list border-end" style="width: 400px; min-width: 200px; flex-shrink: 0; overflow-y: auto; overflow-x: auto;">
             <!-- Filters -->
             <div class="p-2 border-bottom bg-light">
                 <div class="d-flex gap-3 small">
@@ -42,6 +43,9 @@
                 <button class="btn btn-outline-primary" onclick="loadMoreEntries()">Load More</button>
             </div>
         </div>
+
+        <!-- Resize Handle -->
+        <div id="resizeHandle" class="resize-handle"></div>
 
         <!-- Right Panel: Detail View -->
         <div class="conversation-detail flex-grow-1 p-4" style="min-width: 0; overflow-y: auto; overflow-x: auto;">

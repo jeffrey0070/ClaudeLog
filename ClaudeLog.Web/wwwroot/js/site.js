@@ -443,9 +443,81 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Panel resize and toggle functionality
+let isResizing = false;
+let leftPanelWidth = localStorage.getItem('leftPanelWidth') || 400;
+
+function initializePanelResize() {
+    const leftPanel = document.getElementById('leftPanel');
+    const resizeHandle = document.getElementById('resizeHandle');
+
+    // Set initial width from localStorage
+    leftPanel.style.width = `${leftPanelWidth}px`;
+
+    // Mouse down on resize handle
+    resizeHandle.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        resizeHandle.classList.add('resizing');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+    });
+
+    // Mouse move - resize panel
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+
+        const newWidth = e.clientX;
+        if (newWidth >= 200 && newWidth <= 800) {
+            leftPanel.style.width = `${newWidth}px`;
+            leftPanelWidth = newWidth;
+        }
+    });
+
+    // Mouse up - stop resizing
+    document.addEventListener('mouseup', () => {
+        if (isResizing) {
+            isResizing = false;
+            resizeHandle.classList.remove('resizing');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            localStorage.setItem('leftPanelWidth', leftPanelWidth);
+        }
+    });
+}
+
+function toggleLeftPanel() {
+    const leftPanel = document.getElementById('leftPanel');
+    const resizeHandle = document.getElementById('resizeHandle');
+
+    if (leftPanel.classList.contains('collapsed')) {
+        // Expand
+        leftPanel.classList.remove('collapsed');
+        leftPanel.style.width = `${leftPanelWidth}px`;
+        resizeHandle.style.display = 'block';
+    } else {
+        // Collapse
+        leftPanel.classList.add('collapsed');
+        resizeHandle.style.display = 'none';
+    }
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     loadEntries();
+
+    // Initialize panel resize
+    initializePanelResize();
+
+    // Toggle left panel button
+    document.getElementById('toggleLeftPanel').addEventListener('click', toggleLeftPanel);
+
+    // Keyboard shortcut: Ctrl+B to toggle left panel
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key === 'b') {
+            e.preventDefault();
+            toggleLeftPanel();
+        }
+    });
 
     // Search with debounce
     const searchInput = document.getElementById('searchInput');

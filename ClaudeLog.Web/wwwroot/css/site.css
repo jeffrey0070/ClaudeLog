@@ -97,7 +97,7 @@ html, body {
   background-color: #f6f8fa;
   padding: 0.2rem 0.4rem;
   border-radius: 0.25rem;
-  font-family: 'Courier New', monospace;
+  font-family: 'Fira Code', 'Courier New', monospace;
 }
 
 .markdown-content pre code {
@@ -133,9 +133,13 @@ html, body {
 
 .entry-detail pre,
 .entry-detail code {
-  white-space: pre-wrap;
-  word-break: break-all;
-  overflow-wrap: break-word;
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.entry-detail pre {
+  overflow-x: auto;
 }
 
 /* Question and response content boxes */
@@ -165,4 +169,29 @@ html, body {
   font-size: 1em !important;
   font-weight: 600 !important;
   line-height: 1.5 !important;
+}
+
+/* Resize handle */
+.resize-handle {
+  width: 5px;
+  cursor: col-resize;
+  background-color: transparent;
+  flex-shrink: 0;
+  transition: background-color 0.2s;
+}
+
+.resize-handle:hover {
+  background-color: #0d6efd;
+}
+
+.resize-handle.resizing {
+  background-color: #0d6efd;
+}
+
+/* Left panel collapsed state */
+#leftPanel.collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  border: none !important;
 }
