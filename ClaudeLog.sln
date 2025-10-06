@@ -13,6 +13,16 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClaudeLog.MCP", "ClaudeLog.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClaudeLog.Data", "ClaudeLog.Data\ClaudeLog.Data.csproj", "{1B31E728-13D4-48EE-B8D2-302752E39921}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
+	ProjectSection(SolutionItems) = preProject
+		CLAUDE.md = CLAUDE.md
+		ClaudeLog.bat = ClaudeLog.bat
+		ClaudeLog.update-and-run.bat = ClaudeLog.update-and-run.bat
+		CONTEXT.md = CONTEXT.md
+		PROJECT_PLAN.md = PROJECT_PLAN.md
+		README.md = README.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -86,5 +96,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2C211613-121C-44C7-A173-A991C2907E6E}
 	EndGlobalSection
 EndGlobal

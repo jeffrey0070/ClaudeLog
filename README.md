@@ -1,178 +1,129 @@
-﻿# ClaudeLog - Conversation Logger for Claude Code
+# ClaudeLog
 
-ClaudeLog automatically logs all your Claude Code Q&A conversations to SQL Server and provides a web UI to browse, search, and review them.
+Automatic conversation logger for Claude Code and Codex CLIs with web-based browsing interface.
+
+## Overview
+
+ClaudeLog captures every Q&A from your CLI conversations and stores them in SQL Server with a web UI for browsing, searching, and managing your conversation history.
 
 ## Features
 
-- **Automatic Logging**: Captures every Claude Code conversation via the Stop hook
-- **Web UI**: Browse conversations with a clean, compact two-pane interface
-- **Real-time Search**: Search across titles, questions, and responses (300ms debounced)
-- **Section Grouping**: Conversations grouped by CLI session (newest first)
-- **Favorites & Delete**: Mark conversations as favorites or deleted with inline icon buttons
-- **Filtering**: Show/hide deleted entries, filter by favorites only (left panel controls)
-- **Markdown Rendering**: Responses displayed with proper markdown formatting and optimized spacing
-- **Editable Titles**: Click any title to rename it inline
+- **Automatic Logging**: CLI hooks capture conversations transparently
+- **Web UI**: Two-pane browser interface with search and filtering
+- **Smart Favorites**: Favorite conversations stay visible even when deleted
+- **Section Management**: Group conversations by CLI session, soft delete entire sections
+- **Real-time Search**: 300ms debounced search across titles, questions, and responses
+- **Markdown Rendering**: Sanitized HTML rendering of responses
+- **Editable Titles**: Click to rename conversation titles
 - **Copy Functions**: Copy questions, responses, or both to clipboard
-- **Chinese Support**: Proper Unicode handling for titles (200 text elements)
-- **Error Logging**: All errors logged to database for diagnostics
-- **Graceful Shutdown**: Ctrl+C properly stops the web application
+- **Resizable Layout**: Drag to resize panels, Ctrl+B to toggle sidebar
+- **Chinese Support**: Unicode-safe title generation (200 text elements)
+- **Error Logging**: All errors captured in database for diagnostics
 
-## Project Structure
+## Quick Start
 
-```
-ClaudeLog/
-â”œâ”€â”€ ClaudeLog.sln                      # Visual Studio solution
-â”œâ”€â”€ ClaudeLog.Web/                     # ASP.NET Core web app
-â”‚   â”œâ”€â”€ Api/                           # Minimal API endpoints
-â”‚   â”œâ”€â”€ Data/                          # ADO.NET data access
-â”‚   â”œâ”€â”€ Services/                      # Business logic
-â”‚   â”œâ”€â”€ Middleware/                    # Error handling
-â”‚   â””â”€â”€ Pages/                         # Razor Pages UI
-â”œâ”€â”€ ClaudeLog.Hook.Claude/             # Claude Code hook
-â””â”€â”€ Scripts/                           # SQL scripts
-    â”œâ”€â”€ schema.sql
-    â”œâ”€â”€ indexes.sql
-    â””â”€â”€ fts.sql (Phase 3)
-```
+### Prerequisites
 
-## Setup Instructions
+- .NET 9.0 SDK
+- SQL Server (LocalDB, Express, or full edition)
+- Windows (for deployment scripts)
 
-### 1. Database Setup
+### Setup
 
-The database `ClaudeLog` should already exist on `localhost` with Windows Integrated Security.
+1. **Create database:**
+   ```bash
+   sqlcmd -S localhost -E -Q "CREATE DATABASE ClaudeLog"
+   sqlcmd -S localhost -d ClaudeLog -E -i Scripts\schema.sql
+   sqlcmd -S localhost -d ClaudeLog -E -i Scripts\indexes.sql
+   ```
 
-Run the SQL scripts to create tables and indexes:
+2. **Build and publish:**
+   ```bash
+   ClaudeLog.update-and-run.bat
+   ```
+   This builds all projects, publishes to `C:\Apps\ClaudeLog.*`, and starts the web app.
 
+3. **Configure Claude Code hook** (`%USERPROFILE%\.claude\settings.json`):
+   ```json
+   {
+     "hooks": {
+       "Stop": [{
+         "hooks": [{
+           "type": "command",
+           "command": "C:/Apps/ClaudeLog.Hook.Claude/ClaudeLog.Hook.Claude.exe",
+           "timeout": 30
+         }]
+       }]
+     }
+   }
+   ```
+
+4. **Access UI:** http://localhost:15088
+
+### Codex Hook (Optional)
+
+**Stdin mode** (preferred):
+- Codex invokes hook per turn with JSON payload
+- Hook extracts last Q&A and posts to API
+
+**Watcher mode** (fallback):
 ```bash
-sqlcmd -S localhost -d ClaudeLog -E -i Scripts\schema.sql
-sqlcmd -S localhost -d ClaudeLog -E -i Scripts\indexes.sql
+ClaudeLog.Hook.Codex.exe --watch "%USERPROFILE%\.codex\sessions"
 ```
 
-**Tables created:**
-- `dbo.Sections` - CLI sessions
-- `dbo.Conversations` - Q&A entries (includes Title, Question, Response, IsFavorite, IsDeleted)
-- `dbo.ErrorLogs` - Error tracking
-
-### 2. Build the Solution
-
-Open `ClaudeLog.sln` in Visual Studio 2022 and build, or use:
-
-```bash
-dotnet build ClaudeLog.sln
+**Test:**
+```powershell
+$tp="$env:TEMP\codex_test.jsonl"; $sid=[guid]::NewGuid().ToString(); Set-Content -Encoding UTF8 -Path $tp -Value '{"type":"user","message":{"content":[{"type":"text","text":"test?"}]}}'; Add-Content -Encoding UTF8 -Path $tp -Value '{"type":"assistant","message":{"content":[{"type":"text","text":"response"}]}}'; $j='{"session_id":"'+$sid+'","transcript_path":"'+$tp+'","hook_event_name":"Stop"}'; $j | & 'C:\Apps\ClaudeLog.Hook.Codex\ClaudeLog.Hook.Codex.exe'
 ```
 
-### 3. Publish Applications
+## Architecture
 
-Publish both the web app and hook to production folders:
+### Projects
 
-```bash
-# Web application
-dotnet publish ClaudeLog.Web/ClaudeLog.Web.csproj --configuration Release --output "C:/Apps/ClaudeLog.Web" --runtime win-x64 --self-contained false
+- **ClaudeLog.Data** - Shared ADO.NET data layer (repositories, models)
+- **ClaudeLog.Web** - ASP.NET Core web app (Razor Pages + Minimal APIs)
+- **ClaudeLog.Hook.Claude** - Claude Code Stop hook (console app)
+- **ClaudeLog.Hook.Codex** - Codex hook with stdin/watcher modes (console app)
+- **ClaudeLog.MCP** - MCP server (work in progress)
 
-# Hook application
-dotnet publish ClaudeLog.Hook.Claude/ClaudeLog.Hook.Claude.csproj --configuration Release --output "C:/Apps/ClaudeLog.Hook.Claude" --runtime win-x64 --self-contained false
-```
+### Database
 
-Or use the provided batch script:
+**Tables:**
+- `dbo.Sections` - CLI sessions (SectionId, Tool, IsDeleted, CreatedAt)
+- `dbo.Conversations` - Q&A entries (Id, SectionId, Title, Question, Response, IsFavorite, IsDeleted, CreatedAt)
+- `dbo.ErrorLogs` - Error tracking (Id, Source, Message, Detail, Path, SectionId, EntryId, CreatedAt)
 
-```bash
-build-and-publish.bat
-```
+**Key behavior:**
+- All timestamps are local time (SYSDATETIME())
+- Title column is NVARCHAR(400) supporting 200 Unicode text elements
+- Soft delete on both conversations and sections
+- Favorites always visible in queries: `WHERE (@IncludeDeleted = 1 OR c.IsFavorite = 1 OR (c.IsDeleted = 0 AND s.IsDeleted = 0))`
 
-### 4. Configure Claude Code Hook
+### API Endpoints
 
-Add the Stop hook to your Claude Code settings file:
+**Sections:**
+- `POST /api/sections` - Create section
+- `GET /api/sections?days=30&page=1&pageSize=50&includeDeleted=false` - List sections
+- `PATCH /api/sections/{sectionId}/deleted` - Toggle section deleted
 
-**Location:** `%USERPROFILE%\.claude\settings.json`
-
-**Add this configuration:**
-
-```json
-{
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "C:/Apps/ClaudeLog.Hook.Claude/ClaudeLog.Hook.Claude.exe",
-            "timeout": 30
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-**Important Notes:**
-- Use forward slashes in paths to avoid JSON escaping issues
-- The hook is configured for Claude Code v2.0.8+ transcript format
-- Restart Claude Code after modifying settings
-
-### 5. Run the Web Application
-
-Start the published web server:
-
-```bash
-cd C:/Apps/ClaudeLog.Web
-ClaudeLog.Web.exe
-```
-
-The application will be available at: **http://localhost:15088**
-
-**For development:**
-```bash
-cd ClaudeLog.Web
-dotnet run
-```
-Development runs on port 15089.
-
-## Usage
-
-1. **Start the web app** - Run `C:/Apps/ClaudeLog.Web/ClaudeLog.Web.exe`
-2. **Use Claude Code normally** - Ask questions as usual
-3. **Conversations auto-log** - Each Q&A is automatically saved after each response
-4. **Browse in web UI** - Visit http://localhost:15088 to view all conversations
-
-### Web UI Features
-
-- **Search Bar**: Type to filter conversations (searches title, question, response)
-- **Left Panel**:
-  - Shows all conversations grouped by session (newest first)
-  - Filter controls: Show Deleted, Favorites Only
-  - Inline buttons: â­/â˜† for favorites, ðŸ—‘ï¸/â†©ï¸ for delete/restore
-  - Hover over titles to see timestamp
-- **Right Panel**: Shows full question and response for selected conversation
-- **Click Title**: Edit title inline (in detail view)
-- **Copy Buttons**: Copy question, response, or both
-- **Pagination**: Loads 200 entries at a time with "Load More" button
-
-## API Endpoints
-
-The web app exposes these REST endpoints:
-
-### Sections
-- `POST /api/sections` - Create a new section
-- `GET /api/sections` - List sections
-
-### Entries
-- `POST /api/entries` - Create a new conversation entry
-- `GET /api/entries?search=&page=&pageSize=&includeDeleted=&showFavoritesOnly=` - List/search entries with filters
+**Entries:**
+- `POST /api/entries` - Create entry
+- `GET /api/entries?search=&page=1&pageSize=200&includeDeleted=false&showFavoritesOnly=false` - List/search entries
 - `GET /api/entries/{id}` - Get entry detail
-- `PATCH /api/entries/{id}/title` - Update entry title
-- `PATCH /api/entries/{id}/favorite` - Toggle favorite status
-- `PATCH /api/entries/{id}/deleted` - Toggle deleted status
+- `PATCH /api/entries/{id}/title` - Update title
+- `PATCH /api/entries/{id}/favorite` - Toggle favorite
+- `PATCH /api/entries/{id}/deleted` - Toggle deleted
 
-### Errors
-- `POST /api/errors` - Log an error
+**Errors:**
+- `POST /api/errors` - Log error
 
 ## Configuration
 
-### Database Connection String
+**Web app port:**
+- Production: 15088 (configured in `ClaudeLog.update-and-run.bat`)
+- Development: 15089 (configured in `appsettings.Development.json`)
 
-Edit `ClaudeLog.Web/appsettings.json`:
-
+**Database connection** (`ClaudeLog.Web/appsettings.json`):
 ```json
 {
   "ConnectionStrings": {
@@ -181,89 +132,128 @@ Edit `ClaudeLog.Web/appsettings.json`:
 }
 ```
 
-Update `Server` if using a different SQL Server instance.
+**Codex hook environment variables:**
+- `CLAUDELOG_API_BASE` - API URL (default: http://localhost:15088/api)
+- `CLAUDELOG_HOOK_LOGLEVEL` - Set to `verbose` for debug logging
 
-### API Base URL (Hook)
+## Usage
 
-The hook is configured to connect to the production web app port:
+### Web UI
 
-```csharp
-private const string ApiBaseUrl = "http://localhost:15088/api";
-```
+**Search:** Type in top bar to filter (searches title, question, response)
 
-If running the web app on a different port, update this in `ClaudeLog.Hook.Claude/Program.cs` and republish.
+**Left panel:**
+- Conversations grouped by section (newest first)
+- Checkboxes: Show Deleted, Favorites Only
+- Inline buttons: ⭐/☆ (favorite), 🗑️/↩️ (delete/restore) on conversations and sections
+- Favorites always visible regardless of deleted status
+- Drag resize handle or press Ctrl+B to toggle sidebar
+- Hover titles for timestamp
+
+**Right panel:**
+- Click conversation to view full Q&A
+- Click title to edit inline
+- Copy buttons for question, response, or both
+- Markdown rendering for responses
+
+**Pagination:** 200 entries per page, "Load More" button at bottom
+
+### Hooks
+
+**Claude Code hook:**
+- Triggered automatically on Stop event (after each response)
+- Reads transcript JSONL, extracts last user→assistant pair
+- Creates section (once per session), posts entry
+
+**Codex hook:**
+- Stdin mode: Per-turn invocation with JSON payload
+- Watcher mode: Monitors transcript folder for changes
+- Duplicate prevention via SHA-256 hash
+- State file: `%LOCALAPPDATA%\ClaudeLog\codex_state.json`
 
 ## Troubleshooting
 
-### Hook not logging conversations
+**Hook not logging:**
+1. Check web app running: http://localhost:15088
+2. Verify hook config in `%USERPROFILE%\.claude\settings.json`
+3. Restart CLI after config changes
+4. Check error logs: `SELECT TOP 10 * FROM dbo.ErrorLogs ORDER BY CreatedAt DESC`
 
-1. **Check web app is running** on http://localhost:15088
-2. **Verify hook configuration** in `%USERPROFILE%\.claude\settings.json`:
-   - Must use proper nested structure for Stop hook
-   - Use forward slashes in paths (e.g., `C:/Apps/...`)
-   - Restart Claude Code after modifying settings
-3. **Check for errors** in database `dbo.ErrorLogs` table:
-   ```sql
-   SELECT TOP 10 * FROM dbo.ErrorLogs ORDER BY CreatedAt DESC
-   ```
-4. **Test hook manually**:
-   ```bash
-   echo '{"session_id":"test-session","transcript_path":"C:/Users/jeffr/.claude/projects/.../session.jsonl","hook_event_name":"Stop"}' | C:/Apps/ClaudeLog.Hook.Claude/ClaudeLog.Hook.Claude.exe
-   ```
+**Web app won't start:**
+1. Verify SQL Server running
+2. Check port 15088 not in use
+3. Verify connection string in appsettings.json
 
-### Web app won't start
-
-1. **Check database connection** - Verify SQL Server is running
-2. **Check port** - Ensure port 15088 is not in use (production) or 15089 (development)
-3. **Check connection string** - Verify in `appsettings.Production.json` or `appsettings.json`
-
-### No conversations showing in UI
-
-1. **Check database** - Query `SELECT * FROM dbo.Conversations`
-2. **Check browser console** - Look for JavaScript errors
-3. **Check API** - Visit http://localhost:15088/api/entries directly
-4. **Test API page** - Visit http://localhost:15088/Test for manual testing
+**No conversations in UI:**
+1. Query database: `SELECT * FROM dbo.Conversations`
+2. Check browser console for JavaScript errors
+3. Test API directly: http://localhost:15088/api/entries
+4. Use Test page: http://localhost:15088/Test
 
 ## Development
 
-### Technology Stack
+**Technology:**
+- .NET 9.0 with ASP.NET Core Kestrel
+- Razor Pages (server-side rendering)
+- Minimal APIs (REST endpoints)
+- ADO.NET with raw SQL (no ORM)
+- Bootstrap 5 + vanilla JavaScript
+- SQL Server (Windows Integrated Security)
 
-- **.NET 9.0** with ASP.NET Core
-- **Razor Pages** for UI
-- **Minimal APIs** for REST endpoints
-- **ADO.NET** with raw SQL (no EF)
-- **SQL Server** for persistence
-- **Bootstrap 5** for styling
-- **Vanilla JavaScript** for interactivity
+**Key libraries:**
+- Microsoft.Data.SqlClient
+- Markdig (Markdown parsing)
+- HtmlSanitizer (XSS protection)
 
-### Key Libraries
+**Build:**
+```bash
+dotnet build ClaudeLog.sln
+```
 
-- `Microsoft.Data.SqlClient` - Database access
-- `Markdig` - Markdown parsing
-- `HtmlSanitizer` - XSS protection
-- `System.Net.Http.Json` - HTTP JSON helpers
+**Run dev server:**
+```bash
+cd ClaudeLog.Web
+dotnet run
+```
 
-## Roadmap
+**Publish:**
+```bash
+ClaudeLog.update-and-run.bat
+```
 
-### Phase 1 (Current - MVP)
-âœ… Web app with API and UI
-âœ… Claude Code hook integration
-âœ… Search and pagination
-âœ… Error logging
-âœ… Markdown rendering
-âœ… Editable titles
+## Project Structure
 
-### Phase 2 (Future)
-- Shared client library (ClaudeLog.Client)
-- Additional CLI support (Codex)
-- Code syntax highlighting
-- Export functionality (CSV/JSON)
-
-### Phase 3 (Future)
-- Full-text search (Chinese)
-- Error viewer page
-- Tags/metadata
-- Authentication/HTTPS
+```
+ClaudeLog/
+├── ClaudeLog.sln
+├── ClaudeLog.Data/              # Shared data layer
+│   ├── DbContext.cs
+│   ├── Models/                  # DTOs (Entry, Section, ErrorLog)
+│   └── Repositories/            # ADO.NET repos (EntryRepository, etc.)
+├── ClaudeLog.Web/               # Web application
+│   ├── Api/                     # Minimal API endpoints
+│   ├── Middleware/              # ErrorHandlingMiddleware
+│   ├── Pages/                   # Razor Pages (Index, Test, Error)
+│   ├── Services/                # TitleGenerator, MarkdownRenderer, ErrorLogger
+│   ├── wwwroot/                 # Static assets (css, js)
+│   ├── appsettings.json
+│   └── Program.cs
+├── ClaudeLog.Hook.Claude/       # Claude Code hook
+│   └── Program.cs
+├── ClaudeLog.Hook.Codex/        # Codex hook (stdin/watcher)
+│   └── Program.cs
+├── ClaudeLog.MCP/               # MCP server (WIP)
+├── Scripts/                     # SQL scripts
+│   ├── schema.sql
+│   ├── indexes.sql
+│   ├── migration_001_add_favorite_deleted.sql
+│   └── fts.sql
+├── ClaudeLog.update-and-run.bat # Build and deploy script
+├── CLAUDE.md                    # Instructions for Claude
+├── CONTEXT.md                   # Quick project status
+├── PROJECT_PLAN.md              # Architecture and design decisions
+└── README.md                    # This file
+```
 
 ## License
 
@@ -271,31 +261,6 @@ Private project - All rights reserved
 
 ## Support
 
-For issues or questions, check:
-1. Error logs in database: `SELECT * FROM dbo.ErrorLogs ORDER BY CreatedAt DESC`
-2. Browser console for client-side errors
-3. Project plan: `PROJECT_PLAN.md`
-
-## Codex Transcript Hook (Beta)
-
-- Executable: `C:\Apps\ClaudeLog.Hook.Codex\ClaudeLog.Hook.Codex.exe`
-- Modes:
-  - Stdin (preferred): Codex invokes the exe per turn and writes `{ "session_id", "transcript_path", "hook_event_name" }` to stdin. The hook logs the latest user→assistant pair.
-  - Watcher (fallback): run `ClaudeLog.Hook.Codex.exe --watch "%USERPROFILE%\.codex\sessions"` to monitor JSONL transcripts and log turns automatically.
-- Config:
-  - API base: `CLAUDELOG_API_BASE` (default `http://localhost:15088/api`)
-  - State file: `%LOCALAPPDATA%\ClaudeLog\codex_state.json`
-  - Optional root: `CODEX_TRANSCRIPT_PATH` for watcher mode
-- Notes:
-  - Duplicate prevention via SHA-256 hash per transcript
-  - Tolerant parser supports Claude-like and legacy role schemas
-
-### Quick test (stdin mode, fake transcript)
-
-Run this one-liner in PowerShell to simulate a Codex transcript and invoke the hook (uses a new GUID session id):
-
-```
-$tp="$env:TEMP\codex_test.jsonl"; $sid=[guid]::NewGuid().ToString(); Set-Content -Encoding UTF8 -Path $tp -Value '{"type":"user","message":{"content":[{"type":"text","text":"What is 2+2?"}]}}'; Add-Content -Encoding UTF8 -Path $tp -Value '{"type":"assistant","message":{"content":[{"type":"text","text":"4"}]}}'; $j='{"session_id":"'+$sid+'","transcript_path":"'+$tp+'","hook_event_name":"Stop"}'; $j | & 'C:\Apps\ClaudeLog.Hook.Codex\ClaudeLog.Hook.Codex.exe'
-```
-
-Then browse the web UI at `http://localhost:15088` and search for "What is 2+2?".
+- Error logs: `SELECT * FROM dbo.ErrorLogs ORDER BY CreatedAt DESC`
+- Browser console (F12) for client-side errors
+- See PROJECT_PLAN.md for technical details

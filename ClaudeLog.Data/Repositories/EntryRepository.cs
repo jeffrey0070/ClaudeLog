@@ -21,7 +21,7 @@ public class EntryRepository
                c.Title LIKE @SearchPattern OR
                c.Question LIKE @SearchPattern OR
                c.Response LIKE @SearchPattern)
-          AND (@IncludeDeleted = 1 OR (c.IsDeleted = 0 AND s.IsDeleted = 0))
+          AND (@IncludeDeleted = 1 OR c.IsFavorite = 1 OR (c.IsDeleted = 0 AND s.IsDeleted = 0))
           AND (@ShowFavoritesOnly = 0 OR c.IsFavorite = 1)
         ORDER BY s.CreatedAt DESC, c.CreatedAt DESC
         OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
