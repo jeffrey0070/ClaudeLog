@@ -97,6 +97,19 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo.
 echo ============================================
+echo Step 4ex0: Publishing Claude Hook to C:\Apps\ClaudeLog.Hook.Claude...
+echo ============================================
+echo.
+
+dotnet publish ClaudeLog.Hook.Claude\ClaudeLog.Hook.Claude.csproj -c Release -o "C:\Apps\ClaudeLog.Hook.Claude" --runtime win-x64 --self-contained false
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: Publish Claude Hook failed!
+    pause
+    exit /b 1
+)
+
+echo.
+echo ============================================
 echo Step 4ex: Publishing Claude.MCP to C:\Apps\ClaudeLog.MCP...
 echo ============================================
 echo.
