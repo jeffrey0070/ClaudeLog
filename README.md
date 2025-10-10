@@ -43,7 +43,43 @@ ClaudeLog captures every Q&A from your CLI conversations and stores them in SQL 
    ```
    This builds all projects, publishes to `C:\Apps\ClaudeLog.*`, and starts the web app.
 
-3. **Configure Claude Code hook** (`%USERPROFILE%\.claude\settings.json`):
+3. **Configure Claude Code** (choose MCP or Hook):
+
+   **Option A: MCP Server (Recommended)**
+
+   Edit `%USERPROFILE%\.claude\settings.json`:
+   ```json
+   {
+     "mcpServers": {
+       "claudelog": {
+         "type": "stdio",
+         "command": "C:\\Apps\\ClaudeLog.MCP\\ClaudeLog.MCP.exe",
+         "args": []
+       }
+     }
+   }
+   ```
+
+   **How to use MCP for logging:**
+
+   When starting a conversation with Claude, tell it to:
+   1. Call `CreateSection` tool with parameter `tool="Claude"` to create a new logging section
+   2. Store the returned `sectionId` from the response
+   3. After EVERY user/assistant conversation turn, call `LogConversation` with:
+      - `sessionId`: The `sectionId` from step 1
+      - `question`: The user's message
+      - `response`: Your complete response
+
+   Example workflow:
+   ```
+   User: "Please call CreateSection with tool='Claude' and log all our conversations"
+   Claude: [calls CreateSection, gets sectionId="abc-123"]
+   Claude: [after each turn, calls LogConversation(sessionId="abc-123", question="...", response="...")]
+   ```
+
+   **Option B: Hook (Alternative - may not work in VS Code extension)**
+
+   Edit `%USERPROFILE%\.claude\settings.json`:
    ```json
    {
      "hooks": {
@@ -58,9 +94,55 @@ ClaudeLog captures every Q&A from your CLI conversations and stores them in SQL 
    }
    ```
 
+   **Note:** Hooks have known issues in VS Code extension Native UI mode. Use MCP if experiencing problems.
+
 4. **Access UI:** http://localhost:15088
 
-### Codex Hook (Optional)
+### Codex MCP Server (Recommended)
+
+Configure Codex to use the ClaudeLog MCP server for automatic conversation logging.
+
+1. **Create/edit** `%USERPROFILE%\.codex\config.toml`:
+   ```toml
+   [mcp_servers.claudelog]
+   command = "C:\\Apps\\ClaudeLog.MCP\\ClaudeLog.MCP.exe"
+   args = []
+   startup_timeout_ms = 20000
+   ```
+
+2. **Restart Codex** after configuration
+
+3. **How to use MCP for logging:**
+
+   When starting a conversation with Codex, tell it to:
+   1. Call `CreateSection` tool with parameter `tool="Codex"` to create a new logging section
+   2. Store the returned `sectionId` from the response
+   3. After EVERY user/assistant conversation turn, call `LogConversation` with:
+      - `sessionId`: The `sectionId` from step 1
+      - `question`: The user's message
+      - `response`: Your complete response
+
+   Example workflow:
+   ```
+   User: "Please call CreateSection with tool='Codex' and log all our conversations"
+   Codex: [calls CreateSection, gets sectionId="abc-123"]
+   Codex: [after each turn, calls LogConversation(sessionId="abc-123", question="...", response="...")]
+   ```
+
+4. **MCP Tools available:**
+   - `CreateSection(tool)` - Creates logging section, returns `sectionId` (call once per session)
+   - `LogConversation(sessionId, question, response)` - Logs Q&A pairs (call after each turn)
+   - `GetServerInfo()` - Server information
+
+**Notes:**
+- Use double backslashes (`\\`) in Windows paths in TOML
+- MCP server uses STDIO transport (required by Codex)
+- WSL2 recommended for better reliability on Windows
+- Codex config is shared with VS Code extension
+
+### Codex Hook (Alternative)
+
+If MCP is not working, use the hook-based approach:
 
 **Stdin mode** (preferred):
 - Codex invokes hook per turn with JSON payload
@@ -84,7 +166,7 @@ $tp="$env:TEMP\codex_test.jsonl"; $sid=[guid]::NewGuid().ToString(); Set-Content
 - **ClaudeLog.Web** - ASP.NET Core web app (Razor Pages + Minimal APIs)
 - **ClaudeLog.Hook.Claude** - Claude Code Stop hook (console app)
 - **ClaudeLog.Hook.Codex** - Codex hook with stdin/watcher modes (console app)
-- **ClaudeLog.MCP** - MCP server (work in progress)
+- **ClaudeLog.MCP** - MCP server for Codex integration (STDIO transport)
 
 ### Database
 
@@ -242,7 +324,10 @@ ClaudeLog/
 │   └── Program.cs
 ├── ClaudeLog.Hook.Codex/        # Codex hook (stdin/watcher)
 │   └── Program.cs
-├── ClaudeLog.MCP/               # MCP server (WIP)
+├── ClaudeLog.MCP/               # MCP server for Codex
+│   ├── Program.cs
+│   ├── LoggingTools.cs          # MCP tool definitions
+│   └── LoggingService.cs        # HTTP client for API calls
 ├── Scripts/                     # SQL scripts
 │   ├── schema.sql
 │   ├── indexes.sql
