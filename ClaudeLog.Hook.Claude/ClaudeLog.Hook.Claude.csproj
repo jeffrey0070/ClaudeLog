@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Net.Http.Json" Version="9.0.9" />
+    <ProjectReference Include="..\ClaudeLog.Data\ClaudeLog.Data.csproj" />
   </ItemGroup>
 
 </Project>

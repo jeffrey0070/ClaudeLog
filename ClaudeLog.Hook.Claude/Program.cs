@@ -1,17 +1,21 @@
-using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ClaudeLog.Data;
+using ClaudeLog.Data.Models;
+using ClaudeLog.Data.Repositories;
 
 namespace ClaudeLog.Hook.Claude;
 
 /// <summary>
-/// Claude Code hook that captures conversation transcripts and logs them to ClaudeLog API.
+/// Claude Code hook that captures conversation transcripts and logs them to ClaudeLog database.
 /// This hook is triggered by the "Stop" event after each Claude Code conversation turn.
 /// </summary>
 class Program
 {
-    private const string ApiBaseUrl = "http://localhost:15088/api";
-    private static readonly HttpClient httpClient = new();
+    private static readonly DbContext _dbContext = new();
+    private static readonly SectionRepository _sectionRepository = new(_dbContext);
+    private static readonly EntryRepository _entryRepository = new(_dbContext);
+    private static readonly ErrorRepository _errorRepository = new(_dbContext);
 
     static async Task Main(string[] args)
     {
@@ -65,7 +69,7 @@ class Program
         // Ensure section exists for this session (creates if not exists)
         await EnsureSectionAsync(sessionId);
 
-        // Log the conversation entry via API
+        // Log the conversation entry via database
         await LogEntryAsync(sessionId, question, response);
     }
 
@@ -158,18 +162,12 @@ class Program
     {
         try
         {
-            var request = new
-            {
-                tool = "ClaudeCode",
-                sectionId = sessionId
-            };
-
-            var response = await httpClient.PostAsJsonAsync($"{ApiBaseUrl}/sections", request);
-            // Don't throw on error - section might already exist
+            var request = new CreateSectionRequest("ClaudeCode", sessionId, null);
+            await _sectionRepository.CreateAsync(request);
         }
         catch
         {
-            // Swallow errors - best effort
+            // Swallow errors - section might already exist
         }
     }
 
@@ -177,14 +175,8 @@ class Program
     {
         try
         {
-            var request = new
-            {
-                sectionId = sessionId,
-                question,
-                response
-            };
-
-            await httpClient.PostAsJsonAsync($"{ApiBaseUrl}/entries", request);
+            var request = new CreateEntryRequest(sessionId, question, response);
+            await _entryRepository.CreateAsync(request);
         }
         catch (Exception ex)
         {
@@ -196,18 +188,12 @@ class Program
     {
         try
         {
-            var request = new
-            {
-                source,
-                message,
-                detail
-            };
-
-            await httpClient.PostAsJsonAsync($"{ApiBaseUrl}/errors", request);
+            var request = new LogErrorRequest(source, message, detail, null, null, null, null);
+            await _errorRepository.LogErrorAsync(request);
         }
         catch
         {
-            // Swallow errors in error logger
+            // Swallow errors in error logger to avoid infinite loops
         }
     }
 }

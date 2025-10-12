@@ -1,8 +1,10 @@
-﻿using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ClaudeLog.Data;
+using ClaudeLog.Data.Models;
+using ClaudeLog.Data.Repositories;
 
 namespace ClaudeLog.Hook.Codex;
 
@@ -10,13 +12,14 @@ class Program
 {
     // Codex transcript hook
     // - stdin mode: reads { session_id, transcript_path, hook_event_name } from stdin (if Codex provides a per-turn hook)
-    // - watcher mode: --watch <root> monitors JSONL transcripts and logs the last userâ†’assistant pair on changes
+    // - watcher mode: --watch <root> monitors JSONL transcripts and logs the last user→assistant pair on changes
     // The server expects a GUID SectionId; we normalize/derive one from filename or session_meta, or fall back to a
     // deterministic GUID based on the transcript path.
-    private static readonly HttpClient http = new();
-    private static string ApiBaseUrl =>
-        Environment.GetEnvironmentVariable("CLAUDELOG_API_BASE")?.TrimEnd('/')
-        ?? "http://localhost:15088/api";
+
+    private static readonly DbContext _dbContext = new();
+    private static readonly SectionRepository _sectionRepository = new(_dbContext);
+    private static readonly EntryRepository _entryRepository = new(_dbContext);
+    private static readonly ErrorRepository _errorRepository = new(_dbContext);
 
     private static readonly string StateDir =
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "/ClaudeLog";
@@ -256,8 +259,8 @@ class Program
     {
         try
         {
-            var req = new { tool = "Codex", sectionId = sessionId };
-            await http.PostAsJsonAsync($"{ApiBaseUrl}/sections", req);
+            var request = new CreateSectionRequest("Codex", sessionId, null);
+            await _sectionRepository.CreateAsync(request);
         }
         catch { }
     }
@@ -266,8 +269,8 @@ class Program
     {
         try
         {
-            var req = new { sectionId = sessionId, question, response };
-            await http.PostAsJsonAsync($"{ApiBaseUrl}/entries", req);
+            var request = new CreateEntryRequest(sessionId, question, response);
+            await _entryRepository.CreateAsync(request);
         }
         catch (Exception ex)
         {
@@ -279,8 +282,8 @@ class Program
     {
         try
         {
-            var req = new { source, message, detail };
-            await http.PostAsJsonAsync($"{ApiBaseUrl}/errors", req);
+            var request = new LogErrorRequest(source, message, detail, null, null, null, null);
+            await _errorRepository.LogErrorAsync(request);
         }
         catch { }
     }
@@ -299,4 +302,3 @@ class HookInput
     [JsonPropertyName("hook_event_name")]
     public string? HookEventName { get; set; }
 }
-

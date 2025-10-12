@@ -1,11 +1,6 @@
 -- ========================================
 -- ClaudeLog Database Indexes
 -- ========================================
--- Performance optimization indexes for common queries
--- - Ordering by CreatedAt (descending for newest first)
--- - Filtering by SectionId, IsDeleted, IsFavorite
--- - Searching by Title
--- ========================================
 
 USE ClaudeLog;
 GO
