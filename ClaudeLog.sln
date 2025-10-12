@@ -19,10 +19,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		ClaudeLog.bat = ClaudeLog.bat
 		ClaudeLog.update-and-run.bat = ClaudeLog.update-and-run.bat
 		CONTEXT.md = CONTEXT.md
-		Scripts\indexes.sql = Scripts\indexes.sql
 		PROJECT_PLAN.md = PROJECT_PLAN.md
 		README.md = README.md
-		Scripts\schema.sql = Scripts\schema.sql
 	EndProjectSection
 EndProject
 Global

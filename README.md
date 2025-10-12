@@ -19,17 +19,19 @@ ClaudeLog captures every Q&A from your CLI conversations and stores them in SQL 
 
 ### Setup
 
-1. **Create database:**
-   Scripts\schema.sql
-   Scripts\indexes.sql
-
-2. **Build and publish:**
+1. **Build and publish:**
    ```bash
    ClaudeLog.update-and-run.bat
    ```
    This builds all projects, publishes to `C:\Apps\ClaudeLog.*`, and starts the web app.
 
-3. **Configure Claude Code** (choose Hook or MCP):
+   **Database initialization is automatic!** The web app will:
+   - Create the database if it doesn't exist
+   - Create all tables and indexes
+   - Track schema version (1.0.0)
+   - Automatically upgrade on future schema changes
+
+2. **Configure Claude Code** (choose Hook or MCP):
 
    **Option A: Hook**
 
@@ -65,7 +67,7 @@ ClaudeLog captures every Q&A from your CLI conversations and stores them in SQL 
    }
    ```
 
-4.  **Configure Codex** (choose Hook or MCP):
+3. **Configure Codex** (choose Hook or MCP):
 
 **Option A: Hook**
 
@@ -108,7 +110,7 @@ startup_timeout_ms = 20000
    **Note:** MCP logging may double token consumption because the logging go through server. So try hook first.
 
 
-5. **Access UI:** http://localhost:15088
+4. **Access UI:** http://localhost:15088
 
 **Test:**
 ```powershell
@@ -126,6 +128,24 @@ $tp="$env:TEMP\codex_test.jsonl"; $sid=[guid]::NewGuid().ToString(); Set-Content
 - **ClaudeLog.Hook.Codex** - Codex hook with stdin/watcher modes (console app)
 - **ClaudeLog.MCP** - MCP server for Codex integration (STDIO transport)
 
+
+## Database
+
+**Automatic initialization** - Just run the web app:
+- No database? Creates it + runs all migration scripts
+- Database exists? Checks version, runs pending migrations
+- Connection fails? Shows error with setup instructions
+
+**Schema versioning:**
+- Migration scripts in `ClaudeLog.Data/Scripts/`: `1.0.0.sql`, `1.1.0.sql`, etc.
+- Embedded as resources in Data project DLL
+- Tracked in `DatabaseVersion` table
+- All-or-nothing transactions (rollback on failure)
+
+**To add a migration:**
+1. Add `ClaudeLog.Data/Scripts/X.Y.Z.sql` (semantic version)
+2. Rebuild the Data project
+3. Run web app - applies automatically
 
 ## Configuration
 

@@ -20,6 +20,17 @@ builder.Services.AddScoped<ErrorLogger>();
 
 var app = builder.Build();
 
+// Initialize database (automatic creation and migrations)
+var dbInitializer = new ClaudeLog.Data.DatabaseInitializer(connectionString!);
+var dbInitialized = await dbInitializer.InitializeAsync();
+
+if (!dbInitialized)
+{
+    Console.WriteLine("\nDatabase initialization failed. Application cannot start.");
+    Console.WriteLine("Please fix the connection string and try again.");
+    return;
+}
+
 // Display startup info
 var env = app.Environment;
 var config = app.Configuration;

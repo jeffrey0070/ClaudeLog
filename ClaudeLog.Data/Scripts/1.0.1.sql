@@ -1,9 +1,8 @@
--- ========================================
--- ClaudeLog Database Indexes
--- ========================================
+-- ClaudeLog Database Schema v1.0.1
 
-USE ClaudeLog;
-GO
+-- ========================================
+-- Indexes
+-- ========================================
 
 -- Index on Sections.CreatedAt for ordering
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Sections_CreatedAt' AND object_id = OBJECT_ID('dbo.Sections'))
@@ -75,12 +74,9 @@ BEGIN
 END
 GO
 
--- ========================================
 -- Index on Conversations.IsDeleted
--- ========================================
 -- Optimizes filtering by deleted/active entries
 -- INCLUDE clause adds IsFavorite for covering index
--- ========================================
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Conversations_IsDeleted' AND object_id = OBJECT_ID('dbo.Conversations'))
 BEGIN
     CREATE NONCLUSTERED INDEX IX_Conversations_IsDeleted
@@ -94,5 +90,3 @@ BEGIN
     PRINT 'Index IX_Conversations_IsDeleted already exists.';
 END
 GO
-
-PRINT 'Index creation completed successfully.';
