@@ -1,5 +1,5 @@
-using ClaudeLog.Data.Models;
-using ClaudeLog.Data.Repositories;
+using ClaudeLog.Data.Services;
+using ClaudeLog.Web.Api.Dtos;
 
 namespace ClaudeLog.Web.Api;
 
@@ -12,12 +12,24 @@ public static class ErrorsEndpoints
 
     private static async Task<IResult> LogError(
         LogErrorRequest request,
-        ErrorRepository repository)
+        LoggingService service)
     {
         try
         {
-            var response = await repository.LogErrorAsync(request);
-            return Results.Ok(response);
+            var id = await service.LogErrorAsync(
+                request.Source,
+                request.Message,
+                request.Detail,
+                request.Path,
+                request.SessionId,
+                request.EntryId,
+                request.CreatedAt);
+
+            if (id.HasValue)
+            {
+                return Results.Ok(new LogErrorResponse(true, id.Value));
+            }
+            return Results.Problem("Failed to log error");
         }
         catch (Exception ex)
         {

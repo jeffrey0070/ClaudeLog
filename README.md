@@ -15,11 +15,11 @@ ClaudeLog captures every Q&A from your CLI conversations and stores them in SQL 
 
 ### Prerequisites
 
-- SQL Server (LocalDB, Express, or full edition)
+- SQL Server
 
 ### Setup
 
-1. **Build and publish:**
+1. **Build and publish and run:**
    ```bash
    ClaudeLog.update-and-run.bat
    ```
@@ -31,7 +31,12 @@ ClaudeLog captures every Q&A from your CLI conversations and stores them in SQL 
    - Track schema version (1.0.0)
    - Automatically upgrade on future schema changes
 
-2. **Configure Claude Code** (choose Hook or MCP):
+   **Run only** next time you just need to run it because it's already built and published:
+   ```bash
+   ClaudeLog.bat
+   ```
+
+2. **Configure for Claude Code** (choose Hook or MCP):
 
    **Option A: Hook**
 
@@ -112,11 +117,12 @@ startup_timeout_ms = 20000
 
 4. **Access UI:** http://localhost:15088
 
-**Test:**
-```powershell
-$tp="$env:TEMP\codex_test.jsonl"; $sid=[guid]::NewGuid().ToString(); Set-Content -Encoding UTF8 -Path $tp -Value '{"type":"user","message":{"content":[{"type":"text","text":"test?"}]}}'; Add-Content -Encoding UTF8 -Path $tp -Value '{"type":"assistant","message":{"content":[{"type":"text","text":"response"}]}}'; $j='{"session_id":"'+$sid+'","transcript_path":"'+$tp+'","hook_event_name":"Stop"}'; $j | & 'C:\Apps\ClaudeLog.Hook.Codex\ClaudeLog.Hook.Codex.exe'
-```
 
+   **Database initialization is automatic!** The web app will:
+   - Create the database if it doesn't exist
+   - Create all tables and indexes
+   - Track schema version (1.0.0)
+   - Automatically upgrade on future schema changes
 
 ## Architecture
 
@@ -164,4 +170,63 @@ $tp="$env:TEMP\codex_test.jsonl"; $sid=[guid]::NewGuid().ToString(); Set-Content
 
 **Hook/MCP environment variables:**
 - `CLAUDELOG_CONNECTION_STRING` - Database connection string (optional, defaults to localhost)
+- `CLAUDELOG_DEBUG` - Set to `1` to enable debug logging to `%USERPROFILE%\.claudelog\hook-claude-debug.log` (Claude hook)
+- `CLAUDELOG_WAIT_FOR_DEBUGGER` - Set to `1` to pause hook and wait for Visual Studio debugger attachment (Claude hook)
+- `CLAUDELOG_DEBUGGER_WAIT_SECONDS` - Seconds to wait for debugger (default: 60)
 - `CLAUDELOG_HOOK_LOGLEVEL` - Set to `verbose` for debug logging (Codex hook only)
+
+## Debugging
+
+### Debugging Claude Hook
+
+**Option 1: Debug Log File** (recommended for most cases)
+
+1. **Enable debug mode** - Set environment variable before starting Claude Code:
+   ```bash
+   set CLAUDELOG_DEBUG=1
+   claude
+   ```
+
+2. **Check the debug log:**
+   ```bash
+   type %USERPROFILE%\.claudelog\hook-claude-debug.log
+   ```
+
+3. **Watch in real-time:**
+   ```bash
+   powershell Get-Content %USERPROFILE%\.claudelog\hook-claude-debug.log -Wait -Tail 20
+   ```
+
+The log shows:
+- Hook execution timestamps
+- Input JSON from Claude Code
+- Session ID and transcript path
+- Transcript parsing details
+- Database operations
+- Any errors with stack traces
+
+**Option 2: Visual Studio Debugger** (for deep debugging)
+
+The hook normally exits in milliseconds, but you can make it wait for debugger attachment:
+
+1. **Enable debugger wait mode:**
+   ```bash
+   set CLAUDELOG_DEBUG=1
+   set CLAUDELOG_WAIT_FOR_DEBUGGER=1
+   set CLAUDELOG_DEBUGGER_WAIT_SECONDS=60
+   claude
+   ```
+
+2. **Start a conversation** - The hook will pause and log its Process ID
+
+3. **Attach debugger in Visual Studio:**
+   - Debug > Attach to Process (Ctrl+Alt+P)
+   - Filter for "ClaudeLog.Hook.Claude.exe"
+   - Select the process and click "Attach"
+   - The hook will automatically break into the debugger
+
+4. **Set breakpoints and debug** as normal
+
+**Warning:** Claude Code's hook timeout is 30 seconds by default. If you need more time:
+- Set `CLAUDELOG_DEBUGGER_WAIT_SECONDS=25` to stay under timeout
+- Or increase timeout in `.claude\settings.json`: `"timeout": 60`

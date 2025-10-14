@@ -83,38 +83,38 @@ function renderEntriesList(entries) {
         return;
     }
 
-    // Group by section (CLI session)
-    const sections = {};
+    // Group by session (CLI session)
+    const sessions = {};
     entries.forEach(entry => {
-        if (!sections[entry.sectionId]) {
-            sections[entry.sectionId] = {
+        if (!sessions[entry.sessionId]) {
+            sessions[entry.sessionId] = {
                 tool: entry.tool,
-                createdAt: entry.sectionCreatedAt,
+                createdAt: entry.sessionCreatedAt,
                 entries: []
             };
         }
-        sections[entry.sectionId].entries.push(entry);
+        sessions[entry.sessionId].entries.push(entry);
     });
 
-    // Sort sections by date desc (newest first)
-    const sortedSections = Object.entries(sections).sort((a, b) =>
+    // Sort sessions by date desc (newest first)
+    const sortedSections = Object.entries(sessions).sort((a, b) =>
         new Date(b[1].createdAt) - new Date(a[1].createdAt)
     );
 
     let html = '';
-    sortedSections.forEach(([sectionId, section]) => {
-        const sectionDate = new Date(section.createdAt).toLocaleDateString();
-        const sectionTime = new Date(section.createdAt).toLocaleTimeString();
-        const sectionDeleted = section.entries[0]?.sectionIsDeleted || false;
+    sortedSections.forEach(([sessionId, session]) => {
+        const sectionDate = new Date(session.createdAt).toLocaleDateString();
+        const sectionTime = new Date(session.createdAt).toLocaleTimeString();
+        const sectionDeleted = session.entries[0]?.sessionIsDeleted || false;
         const sectionDeleteIcon = sectionDeleted ? '↩️' : '🗑️';
         const sectionDeleteTitle = sectionDeleted ? 'Restore section' : 'Delete section';
         const sectionClass = sectionDeleted ? 'deleted-entry' : '';
         html += `
             <div class="section-group mb-3">
                 <div class="section-header p-2 bg-light fw-bold text-muted small d-flex align-items-center ${sectionClass}">
-                    <span class="flex-grow-1">${sectionDate} ${sectionTime} - ${section.tool}</span>
+                    <span class="flex-grow-1">${sectionDate} ${sectionTime} - ${session.tool}</span>
                     <button class="btn btn-sm btn-link p-0 delete-btn"
-                            onclick="event.stopPropagation(); toggleSectionDeleted('${sectionId}', ${!sectionDeleted})"
+                            onclick="event.stopPropagation(); toggleSessionDeleted('${sessionId}', ${!sectionDeleted})"
                             title="${sectionDeleteTitle}">
                         ${sectionDeleteIcon}
                     </button>
@@ -122,7 +122,7 @@ function renderEntriesList(entries) {
                 <div class="entries-in-section">
         `;
 
-        section.entries.forEach(entry => {
+        session.entries.forEach(entry => {
             const entryDate = new Date(entry.createdAt).toLocaleDateString();
             const entryTime = new Date(entry.createdAt).toLocaleTimeString();
             const entryDateTime = `${entryDate} ${entryTime}`;
@@ -203,7 +203,7 @@ function renderEntryDetail(entry) {
                         ${escapeHtml(title)}
                     </h4>
                     <div class="small text-muted">
-                        ${timestamp} | Session: ${entry.sectionId} | ${entry.tool}
+                        ${timestamp} | Session: ${entry.sessionId} | ${entry.tool}
                     </div>
                 </div>
                 <div class="d-flex gap-2">
@@ -432,23 +432,23 @@ async function toggleDeletedInline(id, isDeleted) {
     }
 }
 
-// Toggle section deleted status
-async function toggleSectionDeleted(sectionId, isDeleted) {
+// Toggle session deleted status
+async function toggleSessionDeleted(sessionId, isDeleted) {
     try {
-        const response = await fetch(`/api/sections/${sectionId}/deleted`, {
+        const response = await fetch(`/api/sessions/${sessionId}/deleted`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ isDeleted })
         });
 
         if (response.ok) {
-            showToast(isDeleted ? 'Section deleted!' : 'Section restored!');
+            showToast(isDeleted ? 'Session deleted!' : 'Session restored!');
             // Reload list to reflect changes
             loadEntries(currentSearch, 1, false);
         }
     } catch (error) {
-        console.error('Failed to toggle section deleted:', error);
-        logError('UI', 'Failed to toggle section deleted', error.toString());
+        console.error('Failed to toggle session deleted:', error);
+        logError('UI', 'Failed to toggle session deleted', error.toString());
     }
 }
 

@@ -1,13 +1,13 @@
 namespace ClaudeLog.Data.Models;
 
-public record LogErrorRequest(
+public record ErrorLog(
+    long Id,
     string Source,
     string Message,
-    string? Detail = null,
-    string? Path = null,
-    string? SectionId = null,
-    long? EntryId = null,
-    DateTime? CreatedAt = null
+    string? Detail,
+    string? Path,
+    string? SessionId,
+    long? EntryId,
+    DateTime CreatedAt,
+    LogLevel LogLevel
 );
-
-public record LogErrorResponse(bool Ok, long Id);

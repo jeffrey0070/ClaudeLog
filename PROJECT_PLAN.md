@@ -14,7 +14,6 @@ Automatically capture all CLI Q&A conversations to SQL Server and provide a web 
 
 **Out of scope:**
 - Cloud storage or multi-user support
-- Authentication or authorization
 - Mobile apps or responsive design
 - Real-time collaboration features
 

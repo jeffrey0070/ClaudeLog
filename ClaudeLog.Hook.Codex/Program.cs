@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using ClaudeLog.Data;
 using ClaudeLog.Data.Models;
-using ClaudeLog.Data.Repositories;
+using ClaudeLog.Data.Services;
 
 namespace ClaudeLog.Hook.Codex;
 
@@ -13,25 +13,36 @@ class Program
     // Codex transcript hook
     // - stdin mode: reads { session_id, transcript_path, hook_event_name } from stdin (if Codex provides a per-turn hook)
     // - watcher mode: --watch <root> monitors JSONL transcripts and logs the last user→assistant pair on changes
-    // The server expects a GUID SectionId; we normalize/derive one from filename or session_meta, or fall back to a
+    // The server expects a GUID SessionId; we normalize/derive one from filename or session_meta, or fall back to a
     // deterministic GUID based on the transcript path.
 
-    private static readonly DbContext _dbContext = new();
-    private static readonly SectionRepository _sectionRepository = new(_dbContext);
-    private static readonly EntryRepository _entryRepository = new(_dbContext);
-    private static readonly ErrorRepository _errorRepository = new(_dbContext);
-
+    // Safe initialization with null-coalescing
     private static readonly string StateDir =
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "/ClaudeLog";
     private static readonly string StatePath = Path.Combine(StateDir, "codex_state.json");
 
     private static bool VerboseLogging =>
-        string.Equals(Environment.GetEnvironmentVariable("CLAUDELOG_HOOK_LOGLEVEL"), "verbose", StringComparison.OrdinalIgnoreCase);
+        string.Equals(Environment.GetEnvironmentVariable("CLAUDELOG_HOOK_LOGLEVEL") ?? "normal", "verbose", StringComparison.OrdinalIgnoreCase);
 
     static async Task<int> Main(string[] args)
     {
+        DbContext? dbContext = null;
+        LoggingService? loggingService = null;
+
         try
         {
+            // Safe initialization of database services
+            try
+            {
+                dbContext = new DbContext();
+                loggingService = new LoggingService(dbContext);
+            }
+            catch (Exception ex)
+            {
+                await Console.Error.WriteLineAsync($"[ClaudeLog.Hook.Codex] CRITICAL: Failed to initialize database services: {ex.Message}");
+                return 1; // Exit with error code
+            }
+
             Directory.CreateDirectory(StateDir);
             await CheckpointStore.LoadAsync(StatePath);
 
@@ -40,11 +51,11 @@ class Program
                 var root = args.Length > 1 ? args[1] : GuessDefaultCodexRoot();
                 if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
                 {
-                    await LogErrorAsync("Hook.Codex", $"Watch root not found: {root}", "");
+                    await loggingService.LogErrorAsync("Hook.Codex", $"Watch root not found: {root}");
                     Console.WriteLine("{}");
                     return 0;
                 }
-                await RunWatcherAsync(root);
+                await RunWatcherAsync(loggingService, root);
                 return 0;
             }
 
@@ -56,7 +67,7 @@ class Program
                 var hook = JsonSerializer.Deserialize<HookInput>(input);
                 if (hook?.TranscriptPath != null && hook.SessionId != null)
                 {
-                    await ProcessTranscriptOnceAsync(hook.SessionId, hook.TranscriptPath);
+                    await ProcessTranscriptOnceAsync(loggingService, hook.SessionId, hook.TranscriptPath);
                 }
             }
 
@@ -65,9 +76,14 @@ class Program
         }
         catch (Exception ex)
         {
-            await LogErrorAsync("Hook.Codex", ex.Message, ex.StackTrace ?? "");
+            if (loggingService != null)
+            {
+                await loggingService.LogCriticalAsync("Hook.Codex", "Unhandled exception in Main",
+                    $"{ex.Message}\n{ex.StackTrace}");
+            }
+            await Console.Error.WriteLineAsync($"[ClaudeLog.Hook.Codex] CRITICAL: {ex.Message}");
             Console.WriteLine("{}");
-            return 0;
+            return 1; // Exit with error code
         }
         finally
         {
@@ -75,7 +91,7 @@ class Program
         }
     }
 
-    private static async Task RunWatcherAsync(string root)
+    private static async Task RunWatcherAsync(LoggingService loggingService, string root)
     {
         using var fsw = new FileSystemWatcher(root)
         {
@@ -123,25 +139,25 @@ class Program
                 {
                     if (VerboseLogging) Console.WriteLine($"[VERBOSE] Processing: {path}");
                     var sessionId = await GetOrInferSessionIdAsync(path) ?? Guid.NewGuid().ToString();
-                    await ProcessTranscriptOnceAsync(sessionId, path);
+                    await ProcessTranscriptOnceAsync(loggingService, sessionId, path);
                     if (VerboseLogging) Console.WriteLine($"[VERBOSE] Completed: {path}");
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[ERROR] Watcher process failed for {path}: {ex.Message}");
-                    await LogErrorAsync("Hook.Codex", $"Watcher process failed: {ex.Message}", ex.StackTrace ?? "");
+                    await loggingService.LogErrorAsync("Hook.Codex", $"Watcher process failed: {ex.Message}", ex.StackTrace ?? "");
                 }
             }
         }
         Console.WriteLine("Watcher stopped.");
     }
 
-    private static async Task ProcessTranscriptOnceAsync(string sessionId, string transcriptPath)
+    private static async Task ProcessTranscriptOnceAsync(LoggingService loggingService, string sessionId, string transcriptPath)
     {
         transcriptPath = Environment.ExpandEnvironmentVariables(transcriptPath);
         if (!File.Exists(transcriptPath))
         {
-            await LogErrorAsync("Hook.Codex", $"Transcript not found: {transcriptPath}", "");
+            await loggingService.LogErrorAsync("Hook.Codex", $"Transcript not found: {transcriptPath}");
             return;
         }
 
@@ -166,12 +182,12 @@ class Program
             return;
         }
 
-        // Normalize/derive a GUID SectionId for server compatibility
-        var sectionGuid = await EnsureGuidSessionIdAsync(sessionId, transcriptPath);
-        await EnsureSectionAsync(sectionGuid);
-        await LogEntryAsync(sectionGuid, question.Trim(), response.Trim());
+        // Normalize/derive a GUID SessionId for server compatibility
+        var sessionGuid = await EnsureGuidSessionIdAsync(sessionId, transcriptPath);
+        await EnsureSessionAsync(loggingService, sessionGuid);
+        await LogEntryAsync(loggingService, sessionGuid, question.Trim(), response.Trim());
 
-        if (VerboseLogging) Console.WriteLine($"[VERBOSE] Logged entry for session {sectionGuid}");
+        if (VerboseLogging) Console.WriteLine($"[VERBOSE] Logged entry for session {sessionGuid}");
 
         CheckpointStore.Update(transcriptPath, new CheckpointRecord
         {
@@ -255,37 +271,36 @@ class Program
         return new Guid(bytes);
     }
 
-    private static async Task EnsureSectionAsync(string sessionId)
+    private static async Task EnsureSessionAsync(LoggingService loggingService, string sessionId)
     {
         try
         {
-            var request = new CreateSectionRequest("Codex", sessionId, null);
-            await _sectionRepository.CreateAsync(request);
-        }
-        catch { }
-    }
-
-    private static async Task LogEntryAsync(string sessionId, string question, string response)
-    {
-        try
-        {
-            var request = new CreateEntryRequest(sessionId, question, response);
-            await _entryRepository.CreateAsync(request);
+            await loggingService.EnsureSessionAsync(sessionId, "Codex");
         }
         catch (Exception ex)
         {
-            await LogErrorAsync("Hook.Codex", $"Failed to log entry: {ex.Message}", ex.StackTrace ?? "");
+            await loggingService.LogErrorAsync("Hook.Codex", $"Failed to ensure session: {ex.Message}", ex.StackTrace ?? "");
         }
     }
 
-    private static async Task LogErrorAsync(string source, string message, string detail)
+    private static async Task LogEntryAsync(LoggingService loggingService, string sessionId, string question, string response)
     {
         try
         {
-            var request = new LogErrorRequest(source, message, detail, null, null, null, null);
-            await _errorRepository.LogErrorAsync(request);
+            var (success, entryId) = await loggingService.LogEntryAsync(sessionId, question, response);
+            if (success)
+            {
+                await loggingService.LogDebugAsync("Hook.Codex", $"Entry logged successfully (ID: {entryId})");
+            }
+            else
+            {
+                await loggingService.LogWarningAsync("Hook.Codex", "Failed to log entry (unknown reason)");
+            }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            await loggingService.LogErrorAsync("Hook.Codex", $"Failed to log entry: {ex.Message}", ex.StackTrace ?? "");
+        }
     }
 }
 

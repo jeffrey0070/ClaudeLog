@@ -1,4 +1,5 @@
-using ClaudeLog.MCP;
+using ClaudeLog.Data;
+using ClaudeLog.Data.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ModelContextProtocol;
@@ -11,7 +12,8 @@ builder.Services
     .WithStdioServerTransport()
     .WithToolsFromAssembly();
 
-// Add logging service (using direct HttpClient to avoid factory issues with stdio transport)
+// Add data layer services
+builder.Services.AddSingleton<DbContext>();
 builder.Services.AddSingleton<LoggingService>();
 
 var app = builder.Build();

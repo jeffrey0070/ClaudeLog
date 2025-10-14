@@ -10,13 +10,10 @@ builder.Services.AddRazorPages();
 // Register data layer services
 var connectionString = builder.Configuration.GetConnectionString("ClaudeLog");
 builder.Services.AddSingleton(new ClaudeLog.Data.DbContext(connectionString));
-builder.Services.AddScoped<ClaudeLog.Data.Repositories.SectionRepository>();
-builder.Services.AddScoped<ClaudeLog.Data.Repositories.EntryRepository>();
-builder.Services.AddScoped<ClaudeLog.Data.Repositories.ErrorRepository>();
+builder.Services.AddScoped<ClaudeLog.Data.Services.LoggingService>();
 
 // Register web services
 builder.Services.AddSingleton<MarkdownRenderer>();
-builder.Services.AddScoped<ErrorLogger>();
 
 var app = builder.Build();
 
@@ -64,7 +61,11 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// Only redirect to HTTPS in Development; disabled in Production.
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseRouting();
 
@@ -74,7 +75,7 @@ app.MapStaticAssets();
 app.MapRazorPages().WithStaticAssets();
 
 // Map API endpoints
-app.MapSectionsEndpoints();
+app.MapSessionsEndpoints();
 app.MapEntriesEndpoints();
 app.MapErrorsEndpoints();
 

@@ -5,7 +5,7 @@ public record LogErrorRequest(
     string Message,
     string? Detail = null,
     string? Path = null,
-    string? SectionId = null,
+    string? SessionId = null,
     long? EntryId = null,
     DateTime? CreatedAt = null
 );

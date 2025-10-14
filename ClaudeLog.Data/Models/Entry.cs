@@ -1,29 +1,15 @@
 namespace ClaudeLog.Data.Models;
 
-public record CreateEntryRequest(
-    string SectionId,
-    string Question,
-    string Response
-);
-
-public record CreateEntryResponse(long Id);
-
-public record UpdateTitleRequest(string Title);
-
-public record UpdateFavoriteRequest(bool IsFavorite);
-
-public record UpdateDeletedRequest(bool IsDeleted);
-
 public record EntryListItem(
     long Id,
     string Title,
     DateTime CreatedAt,
-    Guid SectionId,
-    DateTime SectionCreatedAt,
+    string SessionId,
+    DateTime SessionCreatedAt,
     string Tool,
     bool IsFavorite,
     bool IsDeleted,
-    bool SectionIsDeleted
+    bool SessionIsDeleted
 );
 
 public record EntryDetail(
@@ -32,9 +18,9 @@ public record EntryDetail(
     string Question,
     string Response,
     DateTime CreatedAt,
-    Guid SectionId,
+    string SessionId,
     string Tool,
-    DateTime SectionCreatedAt,
+    DateTime SessionCreatedAt,
     bool IsFavorite,
     bool IsDeleted
 );

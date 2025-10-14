@@ -1,7 +1,7 @@
 namespace ClaudeLog.Web.Api.Dtos;
 
 public record CreateEntryRequest(
-    string SectionId,
+    string SessionId,
     string Question,
     string Response
 );
@@ -18,12 +18,12 @@ public record EntryListDto(
     long Id,
     string Title,
     DateTime CreatedAt,
-    Guid SectionId,
-    DateTime SectionCreatedAt,
+    string SessionId,
+    DateTime SessionCreatedAt,
     string Tool,
     bool IsFavorite,
     bool IsDeleted,
-    bool SectionIsDeleted
+    bool SessionIsDeleted
 );
 
 public record EntryDetailDto(
@@ -32,9 +32,9 @@ public record EntryDetailDto(
     string Question,
     string Response,
     DateTime CreatedAt,
-    Guid SectionId,
+    string SessionId,
     string Tool,
-    DateTime SectionCreatedAt,
+    DateTime SessionCreatedAt,
     bool IsFavorite,
     bool IsDeleted
 );

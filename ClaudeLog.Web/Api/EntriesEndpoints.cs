@@ -1,5 +1,5 @@
-using ClaudeLog.Data.Models;
-using ClaudeLog.Data.Repositories;
+using ClaudeLog.Data.Services;
+using ClaudeLog.Web.Api.Dtos;
 
 namespace ClaudeLog.Web.Api;
 
@@ -27,12 +27,16 @@ public static class EntriesEndpoints
     /// </summary>
     private static async Task<IResult> CreateEntry(
         CreateEntryRequest request,
-        EntryRepository repository)
+        LoggingService service)
     {
         try
         {
-            var response = await repository.CreateAsync(request);
-            return Results.Ok(response);
+            var (success, entryId) = await service.LogEntryAsync(request.SessionId, request.Question, request.Response);
+            if (success && entryId.HasValue)
+            {
+                return Results.Ok(new CreateEntryResponse(entryId.Value));
+            }
+            return Results.Problem("Failed to create entry");
         }
         catch (Exception ex)
         {
@@ -45,7 +49,7 @@ public static class EntriesEndpoints
     /// Supports search, deleted/favorite filters, and pagination.
     /// </summary>
     private static async Task<IResult> GetEntries(
-        EntryRepository repository,
+        LoggingService service,
         string? search = null,
         int page = 1,
         int pageSize = 200,
@@ -54,7 +58,7 @@ public static class EntriesEndpoints
     {
         try
         {
-            var entries = await repository.GetEntriesAsync(search, includeDeleted, showFavoritesOnly, page, pageSize);
+            var entries = await service.GetEntriesAsync(search, includeDeleted, showFavoritesOnly, page, pageSize);
             return Results.Ok(entries);
         }
         catch (Exception ex)
@@ -65,11 +69,11 @@ public static class EntriesEndpoints
 
     private static async Task<IResult> GetEntryById(
         long id,
-        EntryRepository repository)
+        LoggingService service)
     {
         try
         {
-            var entry = await repository.GetEntryByIdAsync(id);
+            var entry = await service.GetEntryByIdAsync(id);
             if (entry != null)
             {
                 return Results.Ok(entry);
@@ -86,11 +90,11 @@ public static class EntriesEndpoints
     private static async Task<IResult> UpdateTitle(
         long id,
         UpdateTitleRequest request,
-        EntryRepository repository)
+        LoggingService service)
     {
         try
         {
-            await repository.UpdateTitleAsync(id, request.Title);
+            await service.UpdateTitleAsync(id, request.Title);
             return Results.Ok(new { ok = true });
         }
         catch (Exception ex)
@@ -102,11 +106,11 @@ public static class EntriesEndpoints
     private static async Task<IResult> UpdateFavorite(
         long id,
         UpdateFavoriteRequest request,
-        EntryRepository repository)
+        LoggingService service)
     {
         try
         {
-            await repository.UpdateFavoriteAsync(id, request.IsFavorite);
+            await service.UpdateFavoriteAsync(id, request.IsFavorite);
             return Results.Ok(new { ok = true });
         }
         catch (Exception ex)
@@ -118,11 +122,11 @@ public static class EntriesEndpoints
     private static async Task<IResult> UpdateDeleted(
         long id,
         UpdateDeletedRequest request,
-        EntryRepository repository)
+        LoggingService service)
     {
         try
         {
-            await repository.UpdateDeletedAsync(id, request.IsDeleted);
+            await service.UpdateDeletedAsync(id, request.IsDeleted);
             return Results.Ok(new { ok = true });
         }
         catch (Exception ex)
