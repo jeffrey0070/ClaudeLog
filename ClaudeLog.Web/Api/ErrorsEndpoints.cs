@@ -1,3 +1,4 @@
+using ClaudeLog.Data.Models;
 using ClaudeLog.Data.Services;
 using ClaudeLog.Web.Api.Dtos;
 
@@ -16,9 +17,10 @@ public static class ErrorsEndpoints
     {
         try
         {
-            var id = await service.LogErrorAsync(
+            var id = await service.LogAsync(
                 request.Source,
                 request.Message,
+                ClaudeLog.Data.Models.LogLevel.Error,
                 request.Detail,
                 request.Path,
                 request.SessionId,
