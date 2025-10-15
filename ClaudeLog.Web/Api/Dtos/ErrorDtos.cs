@@ -11,3 +11,14 @@ public record LogErrorRequest(
 );
 
 public record LogErrorResponse(bool Ok, long Id);
+
+public record ErrorLogDto(
+    long Id,
+    string Source,
+    string Message,
+    string? Detail,
+    string? Path,
+    string? SessionId,
+    long? EntryId,
+    DateTime CreatedAt,
+    ClaudeLog.Data.Models.LogLevel LogLevel);

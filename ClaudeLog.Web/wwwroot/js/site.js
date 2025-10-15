@@ -1,4 +1,4 @@
-// ClaudeLog - Client-side JavaScript
+﻿// ClaudeLog - Client-side JavaScript
 // Handles UI interactions, API calls, and conversation display
 
 // State management
@@ -106,7 +106,7 @@ function renderEntriesList(entries) {
         const sectionDate = new Date(session.createdAt).toLocaleDateString();
         const sectionTime = new Date(session.createdAt).toLocaleTimeString();
         const sectionDeleted = session.entries[0]?.sessionIsDeleted || false;
-        const sectionDeleteIcon = sectionDeleted ? '↩️' : '🗑️';
+        
         const sectionDeleteTitle = sectionDeleted ? 'Restore section' : 'Delete section';
         const sectionClass = sectionDeleted ? 'deleted-entry' : '';
         html += `
@@ -116,7 +116,7 @@ function renderEntriesList(entries) {
                     <button class="btn btn-sm btn-link p-0 delete-btn"
                             onclick="event.stopPropagation(); toggleSessionDeleted('${sessionId}', ${!sectionDeleted})"
                             title="${sectionDeleteTitle}">
-                        ${sectionDeleteIcon}
+                        ${sectionDeleted ? '↩' : '🗑'}
                     </button>
                 </div>
                 <div class="entries-in-section">
@@ -127,18 +127,16 @@ function renderEntriesList(entries) {
             const entryTime = new Date(entry.createdAt).toLocaleTimeString();
             const entryDateTime = `${entryDate} ${entryTime}`;
             const isSelected = entry.id === selectedEntryId;
-            const favoriteIcon = entry.isFavorite ? '⭐' : '☆';
-            const deleteIcon = entry.isDeleted ? '↩️' : '🗑️';
             const deleteTitle = entry.isDeleted ? 'Restore' : 'Delete';
             html += `
-                <div class="entry-item p-2 border-bottom ${isSelected ? 'selected' : ''} ${entry.isDeleted ? 'deleted-entry' : ''}"
+                <div class="entry-item p-2 border-bottom ${isSelected ? 'selected' : ''} "
                      data-entry-id="${entry.id}"
                      title="${entryDateTime}">
                     <div class="d-flex align-items-center gap-2">
                         <button class="btn btn-sm btn-link p-0 favorite-btn"
                                 onclick="event.stopPropagation(); toggleFavoriteInline(${entry.id}, ${!entry.isFavorite})"
                                 title="${entry.isFavorite ? 'Remove from favorites' : 'Add to favorites'}">
-                            ${favoriteIcon}
+                            ${entry.isFavorite ? '★' : '☆'}
                         </button>
                         <div class="entry-title flex-grow-1" onclick="selectEntry(${entry.id})" style="cursor: pointer;">
                             ${escapeHtml(entry.title)}
@@ -146,7 +144,7 @@ function renderEntriesList(entries) {
                         <button class="btn btn-sm btn-link p-0 delete-btn"
                                 onclick="event.stopPropagation(); toggleDeletedInline(${entry.id}, ${!entry.isDeleted})"
                                 title="${deleteTitle}">
-                            ${deleteIcon}
+                            ${entry.isDeleted ? '↩' : '🗑'}
                         </button>
                     </div>
                 </div>
@@ -190,7 +188,6 @@ function renderEntryDetail(entry) {
     const response = (entry.response || '').trim();
     const title = (entry.title || '').trim();
 
-    const favoriteIcon = entry.isFavorite ? '⭐' : '☆';
     const favoriteClass = entry.isFavorite ? 'btn-warning' : 'btn-outline-warning';
     const deleteClass = entry.isDeleted ? 'btn-danger' : 'btn-outline-danger';
     const deleteText = entry.isDeleted ? 'Restore' : 'Delete';
@@ -207,10 +204,10 @@ function renderEntryDetail(entry) {
                     </div>
                 </div>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-sm ${favoriteClass}" onclick="toggleFavorite(${entry.id}, ${!entry.isFavorite})" title="${entry.isFavorite ? 'Remove from favorites' : 'Add to favorites'}">
-                        ${favoriteIcon} Favorite
+                    <button class="btn btn-sm ${favoriteClass}" onclick="toggleFavorite(${entry.id}, ${!entry.isFavorite})" title="">
+                         Favorite
                     </button>
-                    <button class="btn btn-sm ${deleteClass}" onclick="toggleDeleted(${entry.id}, ${!entry.isDeleted})" title="${entry.isDeleted ? 'Restore this entry' : 'Mark as deleted'}">
+                    <button class="btn btn-sm ${deleteClass}" onclick="toggleDeleted(${entry.id}, ${!entry.isDeleted})" title="">
                         ${deleteText}
                     </button>
                 </div>
@@ -560,3 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadEntries('');
     });
 });
+
+
+
+

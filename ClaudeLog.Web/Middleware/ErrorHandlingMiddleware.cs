@@ -1,4 +1,5 @@
 using ClaudeLog.Data.Services;
+using LogLevel = ClaudeLog.Data.Models.LogLevel;
 
 namespace ClaudeLog.Web.Middleware;
 
@@ -11,7 +12,7 @@ public class ErrorHandlingMiddleware
         _next = next;
     }
 
-    public async Task InvokeAsync(HttpContext context, LoggingService loggingService)
+    public async Task InvokeAsync(HttpContext context, DiagnosticsService diagnosticsService)
     {
         try
         {
@@ -19,9 +20,10 @@ public class ErrorHandlingMiddleware
         }
         catch (Exception ex)
         {
-            await loggingService.LogErrorAsync(
+            await diagnosticsService.WriteDiagnosticsAsync(
                 "WebApi",
                 ex.Message,
+                LogLevel.Error,
                 ex.StackTrace ?? "",
                 context.Request.Path
             );

@@ -12,7 +12,7 @@ class Program
 {
     // Codex transcript hook
     // - stdin mode: reads { session_id, transcript_path, hook_event_name } from stdin (if Codex provides a per-turn hook)
-    // - watcher mode: --watch <root> monitors JSONL transcripts and logs the last user→assistant pair on changes
+    // - watcher mode: --watch <root> monitors JSONL transcripts and writes the last user→assistant pair on changes
     // The server expects a GUID SessionId; we normalize/derive one from filename or session_meta, or fall back to a
     // deterministic GUID based on the transcript path.
 
@@ -21,13 +21,18 @@ class Program
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "/ClaudeLog";
     private static readonly string StatePath = Path.Combine(StateDir, "codex_state.json");
 
-    private static bool VerboseLogging =>
-        string.Equals(Environment.GetEnvironmentVariable("CLAUDELOG_HOOK_LOGLEVEL") ?? "normal", "verbose", StringComparison.OrdinalIgnoreCase);
+    private static readonly bool _debugEnabled = (Environment.GetEnvironmentVariable("CLAUDELOG_DEBUG") ?? "0") == "1";
+    private static readonly bool _waitForDebugger = (Environment.GetEnvironmentVariable("CLAUDELOG_WAIT_FOR_DEBUGGER") ?? "0") == "1";
+    private static readonly int _debuggerWaitSeconds = int.TryParse(
+        Environment.GetEnvironmentVariable("CLAUDELOG_DEBUGGER_WAIT_SECONDS") ?? "60",
+        out var seconds) ? seconds : 60;
+
+    private static ConversationService? _conversationService;
+    private static DiagnosticsService? _diagnosticsService;
 
     static async Task<int> Main(string[] args)
     {
         DbContext? dbContext = null;
-        LoggingService? loggingService = null;
 
         try
         {
@@ -35,12 +40,45 @@ class Program
             try
             {
                 dbContext = new DbContext();
-                loggingService = new LoggingService(dbContext);
+                _conversationService = new ConversationService(dbContext);
+                _diagnosticsService = new DiagnosticsService(dbContext);
+
+                // Enable debug logging if CLAUDELOG_DEBUG=1
+                if (_debugEnabled)
+                {
+                    _diagnosticsService.DebugEnabled = true;
+                }
             }
             catch (Exception ex)
             {
                 await Console.Error.WriteLineAsync($"[ClaudeLog.Hook.Codex] CRITICAL: Failed to initialize database services: {ex.Message}");
                 return 1; // Exit with error code
+            }
+
+            await _diagnosticsService.WriteDiagnosticsAsync("Hook.Codex", "Hook.Codex started", LogLevel.Debug);
+
+            // Wait for debugger attachment if requested
+            if (_waitForDebugger)
+            {
+                var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
+                await _diagnosticsService.WriteDiagnosticsAsync("Hook.Codex", $"Waiting for debugger - PID: {pid}", LogLevel.Debug);
+                await Console.Error.WriteLineAsync($"[ClaudeLog.Hook.Codex] Waiting for debugger - PID: {pid}");
+
+                for (int i = 0; i < _debuggerWaitSeconds; i++)
+                {
+                    if (System.Diagnostics.Debugger.IsAttached)
+                    {
+                        await _diagnosticsService.WriteDiagnosticsAsync("Hook.Codex", "Debugger attached", LogLevel.Debug);
+                        System.Diagnostics.Debugger.Break();
+                        break;
+                    }
+                    await Task.Delay(1000);
+                }
+
+                if (!System.Diagnostics.Debugger.IsAttached)
+                {
+                    await _diagnosticsService.WriteDiagnosticsAsync("Hook.Codex", "Debugger wait timeout", LogLevel.Debug);
+                }
             }
 
             Directory.CreateDirectory(StateDir);
@@ -51,11 +89,11 @@ class Program
                 var root = args.Length > 1 ? args[1] : GuessDefaultCodexRoot();
                 if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
                 {
-                    await loggingService.LogErrorAsync("Hook.Codex", $"Watch root not found: {root}");
+                    await _diagnosticsService.WriteDiagnosticsAsync("Hook.Codex", $"Watch root not found: {root}", LogLevel.Error);
                     Console.WriteLine("{}");
                     return 0;
                 }
-                await RunWatcherAsync(loggingService, root);
+                await RunWatcherAsync(root);
                 return 0;
             }
 
@@ -67,7 +105,7 @@ class Program
                 var hook = JsonSerializer.Deserialize<HookInput>(input);
                 if (hook?.TranscriptPath != null && hook.SessionId != null)
                 {
-                    await ProcessTranscriptOnceAsync(loggingService, hook.SessionId, hook.TranscriptPath);
+                    await ProcessTranscriptOnceAsync(hook.SessionId, hook.TranscriptPath);
                 }
             }
 
@@ -76,11 +114,8 @@ class Program
         }
         catch (Exception ex)
         {
-            if (loggingService != null)
-            {
-                await loggingService.LogCriticalAsync("Hook.Codex", "Unhandled exception in Main",
-                    $"{ex.Message}\n{ex.StackTrace}");
-            }
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Codex", "Unhandled exception in Main",
+                LogLevel.Critical, $"{ex.Message}\n{ex.StackTrace}");
             await Console.Error.WriteLineAsync($"[ClaudeLog.Hook.Codex] CRITICAL: {ex.Message}");
             Console.WriteLine("{}");
             return 1; // Exit with error code
@@ -91,7 +126,7 @@ class Program
         }
     }
 
-    private static async Task RunWatcherAsync(LoggingService loggingService, string root)
+    private static async Task RunWatcherAsync(string root)
     {
         using var fsw = new FileSystemWatcher(root)
         {
@@ -137,57 +172,57 @@ class Program
             {
                 try
                 {
-                    if (VerboseLogging) Console.WriteLine($"[VERBOSE] Processing: {path}");
+                    if (_debugEnabled) Console.WriteLine($"[VERBOSE] Processing: {path}");
                     var sessionId = await GetOrInferSessionIdAsync(path) ?? Guid.NewGuid().ToString();
-                    await ProcessTranscriptOnceAsync(loggingService, sessionId, path);
-                    if (VerboseLogging) Console.WriteLine($"[VERBOSE] Completed: {path}");
+                    await ProcessTranscriptOnceAsync(sessionId, path);
+                    if (_debugEnabled) Console.WriteLine($"[VERBOSE] Completed: {path}");
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[ERROR] Watcher process failed for {path}: {ex.Message}");
-                    await loggingService.LogErrorAsync("Hook.Codex", $"Watcher process failed: {ex.Message}", ex.StackTrace ?? "");
+                    await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Codex", $"Watcher process failed: {ex.Message}", LogLevel.Error, ex.StackTrace ?? "");
                 }
             }
         }
         Console.WriteLine("Watcher stopped.");
     }
 
-    private static async Task ProcessTranscriptOnceAsync(LoggingService loggingService, string sessionId, string transcriptPath)
+    private static async Task ProcessTranscriptOnceAsync(string sessionId, string transcriptPath)
     {
         transcriptPath = Environment.ExpandEnvironmentVariables(transcriptPath);
         if (!File.Exists(transcriptPath))
         {
-            await loggingService.LogErrorAsync("Hook.Codex", $"Transcript not found: {transcriptPath}");
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Codex", $"Transcript not found: {transcriptPath}", LogLevel.Error);
             return;
         }
 
         var pair = await TranscriptParser.ExtractLastPairAsync(transcriptPath);
         if (pair == null)
         {
-            if (VerboseLogging) Console.WriteLine($"[VERBOSE] No Q&A pair found in {transcriptPath}");
+            if (_debugEnabled) Console.WriteLine($"[VERBOSE] No Q&A pair found in {transcriptPath}");
             return;
         }
 
         var (question, response) = pair.Value;
         if (string.IsNullOrWhiteSpace(question) || string.IsNullOrWhiteSpace(response))
         {
-            if (VerboseLogging) Console.WriteLine($"[VERBOSE] Empty Q&A in {transcriptPath}");
+            if (_debugEnabled) Console.WriteLine($"[VERBOSE] Empty Q&A in {transcriptPath}");
             return;
         }
 
         var hash = HashPair(question, response);
         if (CheckpointStore.IsDuplicate(transcriptPath, hash))
         {
-            if (VerboseLogging) Console.WriteLine($"[VERBOSE] Duplicate detected (hash match): {transcriptPath}");
+            if (_debugEnabled) Console.WriteLine($"[VERBOSE] Duplicate detected (hash match): {transcriptPath}");
             return;
         }
 
         // Normalize/derive a GUID SessionId for server compatibility
         var sessionGuid = await EnsureGuidSessionIdAsync(sessionId, transcriptPath);
-        await EnsureSessionAsync(loggingService, sessionGuid);
-        await LogEntryAsync(loggingService, sessionGuid, question.Trim(), response.Trim());
+        await EnsureSessionAsync(sessionGuid);
+        await WriteEntryAsync(sessionGuid, question.Trim(), response.Trim());
 
-        if (VerboseLogging) Console.WriteLine($"[VERBOSE] Logged entry for session {sessionGuid}");
+        if (_debugEnabled) Console.WriteLine($"[VERBOSE] Wrote entry for session {sessionGuid}");
 
         CheckpointStore.Update(transcriptPath, new CheckpointRecord
         {
@@ -271,35 +306,28 @@ class Program
         return new Guid(bytes);
     }
 
-    private static async Task EnsureSessionAsync(LoggingService loggingService, string sessionId)
+    private static async Task EnsureSessionAsync(string sessionId)
     {
         try
         {
-            await loggingService.EnsureSessionAsync(sessionId, "Codex");
+            await _conversationService!.EnsureSessionAsync(sessionId, "Codex");
         }
         catch (Exception ex)
         {
-            await loggingService.LogErrorAsync("Hook.Codex", $"Failed to ensure session: {ex.Message}", ex.StackTrace ?? "");
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Codex", $"Failed to ensure session: {ex.Message}", LogLevel.Error, ex.StackTrace ?? "");
         }
     }
 
-    private static async Task LogEntryAsync(LoggingService loggingService, string sessionId, string question, string response)
+    private static async Task WriteEntryAsync(string sessionId, string question, string response)
     {
         try
         {
-            var (success, entryId) = await loggingService.LogEntryAsync(sessionId, question, response);
-            if (success)
-            {
-                await loggingService.LogDebugAsync("Hook.Codex", $"Entry logged successfully (ID: {entryId})");
-            }
-            else
-            {
-                await loggingService.LogWarningAsync("Hook.Codex", "Failed to log entry (unknown reason)");
-            }
+            var entryId = await _conversationService!.WriteEntryAsync(sessionId, question, response);
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Codex", $"Entry written successfully (ID: {entryId})", LogLevel.Debug);
         }
         catch (Exception ex)
         {
-            await loggingService.LogErrorAsync("Hook.Codex", $"Failed to log entry: {ex.Message}", ex.StackTrace ?? "");
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Codex", $"Failed to write entry: {ex.Message}", LogLevel.Error, ex.StackTrace ?? "");
         }
     }
 }

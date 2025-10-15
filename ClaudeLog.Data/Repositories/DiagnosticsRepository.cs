@@ -6,11 +6,11 @@ namespace ClaudeLog.Data.Repositories;
 /// <summary>
 /// Repository for logging and managing error records
 /// </summary>
-public class ErrorRepository
+public class DiagnosticsRepository
 {
     private readonly DbContext _dbContext;
 
-    public ErrorRepository(DbContext dbContext)
+    public DiagnosticsRepository(DbContext dbContext)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     }
@@ -84,29 +84,66 @@ public class ErrorRepository
 
             return (long)result;
         }
-        catch
+        catch (Exception ex)
         {
-            // Swallow all exceptions to prevent error logging from causing cascading failures
-            // This is intentional - error logging should never break the application
+            // Fallback: write to local daily log file in the app folder. Swallow all exceptions here.
+            SafeLogToFile(source, message, detail, path, sessionId, entryId, createdAt ?? DateTime.Now, logLevel, ex);
             return 0;
         }
     }
 
-    /// <summary>
-    /// Retrieves a paginated list of error logs with optional filtering
-    /// </summary>
-    /// <param name="source">Filter by error source (optional)</param>
-    /// <param name="days">Number of days to look back (default: 7)</param>
-    /// <param name="page">Page number, starting at 1 (default: 1)</param>
-    /// <param name="pageSize">Number of errors per page (default: 50)</param>
-    /// <returns>List of error logs ordered by creation date (newest first)</returns>
-    public async Task<List<ErrorLog>> GetErrorsAsync(
-        string? source = null,
-        int days = 7,
-        int page = 1,
-        int pageSize = 50)
+    private void SafeLogToFile(
+        string source,
+        string message,
+        string? detail,
+        string? path,
+        string? sessionId,
+        long? entryId,
+        DateTime createdAt,
+        LogLevel level,
+        Exception exception)
     {
-        var errors = new List<ErrorLog>();
+        try
+        {
+            var baseDir = AppContext.BaseDirectory;
+            // Ensure baseDir exists (normally true), but be defensive
+            if (!Directory.Exists(baseDir))
+            {
+                Directory.CreateDirectory(baseDir);
+            }
+
+            var filePath = System.IO.Path.Combine(baseDir, $"Log_{DateTime.Now:yyyyMMdd}.txt");
+            var now = DateTime.Now;
+
+            using var stream = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+            using var writer = new StreamWriter(stream);
+
+            writer.WriteLine(new string('-', 80));
+            writer.WriteLine($"[{now:yyyy-MM-dd HH:mm:ss.fff}] DiagnosticsRepository fallback log");
+            writer.WriteLine($"Level: {level}  Source: {source}");
+            writer.WriteLine($"Message: {message}");
+            if (!string.IsNullOrWhiteSpace(detail)) writer.WriteLine($"Detail: {detail}");
+            if (!string.IsNullOrWhiteSpace(path)) writer.WriteLine($"Path: {path}");
+            if (!string.IsNullOrWhiteSpace(sessionId)) writer.WriteLine($"SessionId: {sessionId}");
+            if (entryId.HasValue) writer.WriteLine($"EntryId: {entryId}");
+            writer.WriteLine($"CreatedAt: {createdAt:O}");
+            writer.WriteLine("DB logging failed with exception:");
+            writer.WriteLine(exception.ToString());
+            writer.Flush();
+        }
+        catch
+        {
+            // Intentionally swallow any exceptions during file fallback logging.
+        }
+    }
+
+    public async Task<List<(long Id, string Source, string Message, string? Detail, string? Path, string? SessionId, long? EntryId, DateTime CreatedAt, LogLevel LogLevel)>> GetLogsAsync(
+        LogLevel? minLevel = null,
+        string? source = null,
+        int page = 1,
+        int pageSize = 100)
+    {
+        var list = new List<(long, string, string, string?, string?, string?, long?, DateTime, LogLevel)>();
 
         using var conn = _dbContext.CreateConnection();
         await conn.OpenAsync();
@@ -114,13 +151,13 @@ public class ErrorRepository
         var query = @"
             SELECT Id, Source, Message, Detail, Path, SessionId, EntryId, CreatedAt, LogLevel
             FROM dbo.ErrorLogs
-            WHERE CreatedAt >= DATEADD(DAY, -@Days, SYSDATETIME())
-              AND (@Source IS NULL OR Source = @Source)
+            WHERE (@MinLevel IS NULL OR LogLevel >= @MinLevel)
+              AND (@Source IS NULL OR @Source = '' OR Source = @Source)
             ORDER BY CreatedAt DESC
             OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
 
         using var cmd = new SqlCommand(query, conn);
-        cmd.Parameters.AddWithValue("@Days", days);
+        cmd.Parameters.AddWithValue("@MinLevel", minLevel.HasValue ? (object)(int)minLevel.Value : DBNull.Value);
         cmd.Parameters.AddWithValue("@Source", (object?)source ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@Offset", (page - 1) * pageSize);
         cmd.Parameters.AddWithValue("@PageSize", pageSize);
@@ -128,49 +165,19 @@ public class ErrorRepository
         using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            errors.Add(new ErrorLog(
-                reader.GetInt64(0),                                        // Id - never null (PK)
-                reader.GetString(1),                                       // Source - never null (NOT NULL)
-                reader.GetString(2),                                       // Message - never null (NOT NULL)
-                reader.IsDBNull(3) ? null : reader.GetString(3),          // Detail - nullable
-                reader.IsDBNull(4) ? null : reader.GetString(4),          // Path - nullable
-                reader.IsDBNull(5) ? null : reader.GetString(5),          // SessionId - nullable
-                reader.IsDBNull(6) ? null : reader.GetInt64(6),           // EntryId - nullable
-                reader.GetDateTime(7),                                     // CreatedAt - never null (NOT NULL)
-                (LogLevel)reader.GetInt32(8)                               // LogLevel - never null (NOT NULL with DEFAULT)
+            list.Add((
+                reader.GetInt64(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.IsDBNull(4) ? null : reader.GetString(4),
+                reader.IsDBNull(5) ? null : reader.GetString(5),
+                reader.IsDBNull(6) ? null : reader.GetInt64(6),
+                reader.GetDateTime(7),
+                (LogLevel)reader.GetInt32(8)
             ));
         }
 
-        return errors;
-    }
-
-    /// <summary>
-    /// Gets the total count of error logs matching the criteria
-    /// </summary>
-    /// <param name="source">Filter by error source (optional)</param>
-    /// <param name="days">Number of days to look back (default: 7)</param>
-    /// <returns>Total number of matching error logs</returns>
-    public async Task<int> GetCountAsync(string? source = null, int days = 7)
-    {
-        using var conn = _dbContext.CreateConnection();
-        await conn.OpenAsync();
-
-        var query = @"
-            SELECT COUNT(*)
-            FROM dbo.ErrorLogs
-            WHERE CreatedAt >= DATEADD(DAY, -@Days, SYSDATETIME())
-              AND (@Source IS NULL OR Source = @Source)";
-
-        using var cmd = new SqlCommand(query, conn);
-        cmd.Parameters.AddWithValue("@Days", days);
-        cmd.Parameters.AddWithValue("@Source", (object?)source ?? DBNull.Value);
-
-        var result = await cmd.ExecuteScalarAsync();
-
-        // ExecuteScalar with COUNT(*) should never return null, but be defensive
-        if (result == null || result == DBNull.Value)
-            return 0;
-
-        return (int)result;
+        return list;
     }
 }

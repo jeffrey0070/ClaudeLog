@@ -1,72 +1,85 @@
 using System.ComponentModel;
+using System.Text.Json;
+using ClaudeLog.Data.Models;
 using ClaudeLog.Data.Services;
 using ModelContextProtocol.Server;
 
 namespace ClaudeLog.MCP;
 
 /// <summary>
-/// MCP tools for logging conversations to ClaudeLog
+/// MCP tools for writing conversations to ClaudeLog
 /// </summary>
 [McpServerToolType]
 public static class LoggingTools
 {
     /// <summary>
-    /// Creates a new logging session and returns its sessionId. Call this once at launch and reuse the id.
+    /// Creates a new conversation session and returns its sessionId. Call this once at launch and reuse the id.
     /// </summary>
     /// <param name="tool">Logical tool/source name for this session (default: "Codex")</param>
-    /// <param name="loggingService">Injected logging service</param>
+    /// <param name="conversationService">Injected conversation service</param>
+    /// <param name="diagnosticsService">Injected diagnostics service</param>
     /// <returns>JSON string: { success: bool, sessionId?: string, error?: string }</returns>
     [McpServerTool]
-    [Description("Creates a new logging session and returns its sessionId; call once and reuse.")]
+    [Description("Creates a new conversation session and returns its sessionId; call once and reuse.")]
     public static async Task<string> CreateSession(
         string? tool,
-        LoggingService loggingService)
+        ConversationService conversationService,
+        DiagnosticsService diagnosticsService)
     {
         var toolName = string.IsNullOrWhiteSpace(tool) ? "Codex" : tool!;
 
-        var (success, sessionId, error) = await loggingService.CreateSessionAsync(toolName);
-        if (success && !string.IsNullOrWhiteSpace(sessionId))
+        try
         {
-            return $"{{\"success\": true, \"sessionId\": \"{sessionId}\"}}";
+            var sessionId = await conversationService.CreateSessionAsync(toolName);
+            return JsonSerializer.Serialize(new { success = true, sessionId });
         }
-
-        var errorMsg = error ?? "Failed to create session";
-        return $"{{\"success\": false, \"error\": \"{errorMsg.Replace("\"", "\\\"")}\"}}";
+        catch (Exception ex)
+        {
+            await diagnosticsService.WriteDiagnosticsAsync("MCP.CreateSession", ex.Message, LogLevel.Error, ex.StackTrace ?? "");
+            return JsonSerializer.Serialize(new { success = false, error = ex.Message });
+        }
     }
 
     /// <summary>
-    /// Logs a conversation (question and response pair) to ClaudeLog database.
+    /// Writes a conversation entry (question and response pair) to ClaudeLog database.
     /// This tool should be called after completing a conversation turn to persist it for future reference.
     /// </summary>
     /// <param name="sessionId">Unique identifier for the conversation session (typically a GUID)</param>
     /// <param name="question">The user's question or prompt</param>
     /// <param name="response">The assistant's response</param>
-    /// <param name="loggingService">Injected logging service</param>
+    /// <param name="conversationService">Injected conversation service</param>
+    /// <param name="diagnosticsService">Injected diagnostics service</param>
     /// <returns>Success status and entry ID if successful</returns>
     [McpServerTool]
-    [Description("Logs a conversation (question and response) to ClaudeLog database. Call CreateSession first and reuse its sessionId for this tool.")]
+    [Description("Writes a conversation entry (question and response) to ClaudeLog database. Call CreateSession first and reuse its sessionId for this tool.")]
     public static async Task<string> LogConversation(
         string sessionId,
         string question,
         string response,
-        LoggingService loggingService)
+        ConversationService conversationService,
+        DiagnosticsService diagnosticsService)
     {
         if (string.IsNullOrWhiteSpace(sessionId))
-            return "{\"success\": false, \"error\": \"sessionId is required\"}";
+            return JsonSerializer.Serialize(new { success = false, error = "sessionId is required" });
 
         if (string.IsNullOrWhiteSpace(question) || string.IsNullOrWhiteSpace(response))
-            return "{\"success\": false, \"error\": \"Both question and response are required\"}";
+            return JsonSerializer.Serialize(new { success = false, error = "Both question and response are required" });
 
-        // Log the conversation entry (assumes session was created via CreateSession)
-        var (success, entryId) = await loggingService.LogEntryAsync(
-            sessionId,
-            question.Trim(),
-            response.Trim());
+        // Write the conversation entry (assumes session was created via CreateSession)
+        try
+        {
+            var entryId = await conversationService.WriteEntryAsync(
+                sessionId,
+                question.Trim(),
+                response.Trim());
 
-        if (success && entryId.HasValue)
-            return $"{{\"success\": true, \"entryId\": {entryId.Value}}}";
-
-        return "{\"success\": false, \"error\": \"Failed to log entry\"}";
+            return JsonSerializer.Serialize(new { success = true, entryId });
+        }
+        catch (Exception ex)
+        {
+            await diagnosticsService.WriteDiagnosticsAsync("MCP.LogConversation", ex.Message, LogLevel.Error, ex.StackTrace ?? "", sessionId: sessionId);
+            return JsonSerializer.Serialize(new { success = false, error = ex.Message });
+        }
     }
 
     /// <summary>
@@ -76,6 +89,11 @@ public static class LoggingTools
     [Description("Returns information about ClaudeLog MCP server capabilities and status")]
     public static string GetServerInfo()
     {
-        return "{\"name\": \"ClaudeLog MCP Server\", \"version\": \"1.0.0\", \"capabilities\": [\"create_session\", \"log_conversation\"]}";
+        return JsonSerializer.Serialize(new
+        {
+            name = "ClaudeLog MCP Server",
+            version = "1.0.0",
+            capabilities = new[] { "create_session", "log_conversation" }
+        });
     }
 }

@@ -6,11 +6,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    options.SerializerOptions.DictionaryKeyPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+});
 
 // Register data layer services
 var connectionString = builder.Configuration.GetConnectionString("ClaudeLog");
 builder.Services.AddSingleton(new ClaudeLog.Data.DbContext(connectionString));
-builder.Services.AddScoped<ClaudeLog.Data.Services.LoggingService>();
+builder.Services.AddScoped<ClaudeLog.Data.Services.ConversationService>();
+builder.Services.AddScoped<ClaudeLog.Data.Services.DiagnosticsService>();
 
 // Register web services
 builder.Services.AddSingleton<MarkdownRenderer>();
@@ -31,7 +37,9 @@ if (!dbInitialized)
 // Display startup info
 var env = app.Environment;
 var config = app.Configuration;
-var urls = config["Kestrel:Endpoints:Http:Url"] ?? "????";
+var urls = config["Kestrel:Endpoints:Http:Url"]
+    ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS")
+    ?? (app.Environment.IsDevelopment() ? "http://localhost:15089" : "http://localhost:15088");
 
 Console.WriteLine("========================================");
 Console.WriteLine("ClaudeLog - Conversation Logger");

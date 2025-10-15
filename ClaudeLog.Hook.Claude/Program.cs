@@ -19,10 +19,12 @@ class Program
         Environment.GetEnvironmentVariable("CLAUDELOG_DEBUGGER_WAIT_SECONDS") ?? "60",
         out var seconds) ? seconds : 60;
 
+    private static ConversationService? _conversationService;
+    private static DiagnosticsService? _diagnosticsService;
+
     static async Task<int> Main(string[] args)
     {
         DbContext? dbContext = null;
-        LoggingService? loggingService = null;
 
         try
         {
@@ -30,7 +32,14 @@ class Program
             try
             {
                 dbContext = new DbContext();
-                loggingService = new LoggingService(dbContext);
+                _conversationService = new ConversationService(dbContext);
+                _diagnosticsService = new DiagnosticsService(dbContext);
+
+                // Enable debug logging if CLAUDELOG_DEBUG=1
+                if (_debugEnabled)
+                {
+                    _diagnosticsService.DebugEnabled = true;
+                }
             }
             catch (Exception ex)
             {
@@ -38,20 +47,20 @@ class Program
                 return 1; // Exit with error code
             }
 
-            await LogAsync(loggingService, LogLevel.Debug, "Hook.Claude started");
+            await _diagnosticsService.WriteDiagnosticsAsync("Hook.Claude", "Hook.Claude started", LogLevel.Debug);
 
             // Wait for debugger attachment if requested
             if (_waitForDebugger)
             {
                 var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
-                await LogAsync(loggingService, LogLevel.Debug, $"Waiting for debugger - PID: {pid}");
+                await _diagnosticsService.WriteDiagnosticsAsync("Hook.Claude", $"Waiting for debugger - PID: {pid}", LogLevel.Debug);
                 await Console.Error.WriteLineAsync($"[ClaudeLog.Hook.Claude] Waiting for debugger - PID: {pid}");
 
                 for (int i = 0; i < _debuggerWaitSeconds; i++)
                 {
                     if (System.Diagnostics.Debugger.IsAttached)
                     {
-                        await LogAsync(loggingService, LogLevel.Debug, "Debugger attached");
+                        await _diagnosticsService.WriteDiagnosticsAsync("Hook.Claude", "Debugger attached", LogLevel.Debug);
                         System.Diagnostics.Debugger.Break();
                         break;
                     }
@@ -60,7 +69,7 @@ class Program
 
                 if (!System.Diagnostics.Debugger.IsAttached)
                 {
-                    await LogAsync(loggingService, LogLevel.Debug, "Debugger wait timeout");
+                    await _diagnosticsService.WriteDiagnosticsAsync("Hook.Claude", "Debugger wait timeout", LogLevel.Debug);
                 }
             }
 
@@ -68,34 +77,31 @@ class Program
             using var reader = new StreamReader(Console.OpenStandardInput());
             var json = await reader.ReadToEndAsync();
 
-            await LogAsync(loggingService, LogLevel.Trace, "Received hook input", json);
+            await _diagnosticsService.WriteDiagnosticsAsync("Hook.Claude", "Received hook input", LogLevel.Trace, json);
 
             var hookInput = JsonSerializer.Deserialize<HookInput>(json);
 
             if (hookInput?.TranscriptPath != null && hookInput.SessionId != null)
             {
-                await LogAsync(loggingService, LogLevel.Debug, $"Processing transcript for session {hookInput.SessionId}");
-                await ProcessTranscriptAsync(loggingService, hookInput.SessionId, hookInput.TranscriptPath);
+                await _diagnosticsService.WriteDiagnosticsAsync("Hook.Claude", $"Processing transcript for session {hookInput.SessionId}", LogLevel.Debug);
+                await ProcessTranscriptAsync(hookInput.SessionId, hookInput.TranscriptPath);
             }
             else
             {
-                await LogAsync(loggingService, LogLevel.Warning, "Missing required hook input fields",
+                await _diagnosticsService.WriteDiagnosticsAsync("Hook.Claude", "Missing required hook input fields", LogLevel.Warning,
                     $"SessionId: {hookInput?.SessionId}, TranscriptPath: {hookInput?.TranscriptPath}");
             }
 
             // Output empty JSON (hook doesn't modify anything)
             Console.WriteLine("{}");
-            await LogAsync(loggingService, LogLevel.Debug, "Hook.Claude completed successfully");
+            await _diagnosticsService.WriteDiagnosticsAsync("Hook.Claude", "Hook.Claude completed successfully", LogLevel.Debug);
             return 0;
         }
         catch (Exception ex)
         {
             // Log critical error
-            if (loggingService != null)
-            {
-                await loggingService.LogCriticalAsync("Hook.Claude", "Unhandled exception in Main",
-                    $"{ex.Message}\n{ex.StackTrace}");
-            }
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", "Unhandled exception in Main",
+                LogLevel.Critical, $"{ex.Message}\n{ex.StackTrace}");
             await Console.Error.WriteLineAsync($"[ClaudeLog.Hook.Claude] CRITICAL: {ex.Message}");
 
             // Always output {} so Claude Code doesn't fail
@@ -106,46 +112,46 @@ class Program
 
     /// <summary>
     /// Processes the Claude Code transcript file and extracts the last Q&A pair.
-    /// Creates a session for the conversation and logs the conversation entry.
+    /// Creates a session for the conversation and writes the conversation entry.
     /// </summary>
-    static async Task ProcessTranscriptAsync(LoggingService loggingService, string sessionId, string transcriptPath)
+    static async Task ProcessTranscriptAsync(string sessionId, string transcriptPath)
     {
         // Expand environment variables in path (handles %USERPROFILE% etc.)
         transcriptPath = Environment.ExpandEnvironmentVariables(transcriptPath);
 
         if (!File.Exists(transcriptPath))
         {
-            await loggingService.LogErrorAsync("Hook.Claude", $"Transcript file not found: {transcriptPath}");
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", $"Transcript file not found: {transcriptPath}", LogLevel.Error);
             return;
         }
 
         // Read last Q&A from transcript (JSONL format)
-        var (question, response) = await ReadLastInteractionAsync(loggingService, transcriptPath);
+        var (question, response) = await ReadLastInteractionAsync(transcriptPath);
 
         if (string.IsNullOrEmpty(question) || string.IsNullOrEmpty(response))
         {
-            await LogAsync(loggingService, LogLevel.Debug, "No Q&A pair found in transcript");
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", "No Q&A pair found in transcript", LogLevel.Debug);
             return;
         }
 
         // Ensure session exists (creates if not exists)
-        await EnsureSessionAsync(loggingService, sessionId);
+        await EnsureSessionAsync(sessionId);
 
-        // Log the conversation entry via database
-        await LogEntryAsync(loggingService, sessionId, question, response);
+        // Write the conversation entry to database
+        await WriteEntryAsync(sessionId, question, response);
     }
 
     /// <summary>
     /// Reads the JSONL transcript file and extracts the last user question and assistant response.
     /// Claude Code v2.0.8+ uses format: {"type":"user/assistant", "message":{"content":[...]}}
     /// </summary>
-    static async Task<(string? question, string? response)> ReadLastInteractionAsync(LoggingService loggingService, string transcriptPath)
+    static async Task<(string? question, string? response)> ReadLastInteractionAsync(string transcriptPath)
     {
         try
         {
-            await LogAsync(loggingService, LogLevel.Trace, $"Reading transcript from: {transcriptPath}");
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", $"Reading transcript from: {transcriptPath}", LogLevel.Trace);
             var lines = await File.ReadAllLinesAsync(transcriptPath);
-            await LogAsync(loggingService, LogLevel.Trace, $"Found {lines.Length} lines in transcript");
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", $"Found {lines.Length} lines in transcript", LogLevel.Trace);
 
             var messages = new List<TranscriptMessage>();
 
@@ -162,7 +168,7 @@ class Program
                 }
             }
 
-            await LogAsync(loggingService, LogLevel.Trace, $"Parsed {messages.Count} messages");
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", $"Parsed {messages.Count} messages", LogLevel.Trace);
 
             string? question = null;
             string? response = null;
@@ -175,12 +181,12 @@ class Program
                 if (msg.Type == "assistant" && msg.Message != null && response == null)
                 {
                     response = ExtractTextContent(msg.Message.Content);
-                    await LogAsync(loggingService, LogLevel.Trace, $"Found assistant response (length: {response?.Length ?? 0})");
+                    await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", $"Found assistant response (length: {response?.Length ?? 0})", LogLevel.Trace);
                 }
                 else if (msg.Type == "user" && msg.Message != null && question == null)
                 {
                     question = ExtractTextContent(msg.Message.Content);
-                    await LogAsync(loggingService, LogLevel.Trace, $"Found user question (length: {question?.Length ?? 0})");
+                    await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", $"Found user question (length: {question?.Length ?? 0})", LogLevel.Trace);
                 }
 
                 if (question != null && response != null)
@@ -193,7 +199,7 @@ class Program
         }
         catch (Exception ex)
         {
-            await loggingService.LogErrorAsync("Hook.Claude", $"Error reading transcript: {ex.Message}", ex.StackTrace ?? "");
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", $"Error reading transcript: {ex.Message}", LogLevel.Error, ex.StackTrace ?? "");
             return (null, null);
         }
     }
@@ -227,83 +233,29 @@ class Program
         return null;
     }
 
-    static async Task EnsureSessionAsync(LoggingService loggingService, string sessionId)
+    static async Task EnsureSessionAsync(string sessionId)
     {
         try
         {
-            await loggingService.EnsureSessionAsync(sessionId, "ClaudeCode");
+            await _conversationService!.EnsureSessionAsync(sessionId, "ClaudeCode");
         }
         catch (Exception ex)
         {
-            await loggingService.LogErrorAsync("Hook.Claude", $"Failed to ensure session: {ex.Message}", ex.StackTrace ?? "");
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", $"Failed to ensure session: {ex.Message}", LogLevel.Error, ex.StackTrace ?? "");
         }
     }
 
-    static async Task LogEntryAsync(LoggingService loggingService, string sessionId, string question, string response)
+    static async Task WriteEntryAsync(string sessionId, string question, string response)
     {
         try
         {
-            await LogAsync(loggingService, LogLevel.Debug, $"Logging entry for session: {sessionId}");
-            var (success, entryId) = await loggingService.LogEntryAsync(sessionId, question, response);
-
-            if (success)
-            {
-                await LogAsync(loggingService, LogLevel.Info, $"Entry logged successfully (ID: {entryId})");
-            }
-            else
-            {
-                await loggingService.LogWarningAsync("Hook.Claude", "Failed to log entry (unknown reason)");
-            }
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", $"Writing entry for session: {sessionId}", LogLevel.Debug);
+            var entryId = await _conversationService!.WriteEntryAsync(sessionId, question, response);
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", $"Entry written successfully (ID: {entryId})", LogLevel.Info);
         }
         catch (Exception ex)
         {
-            await loggingService.LogErrorAsync("Hook.Claude", $"Failed to log entry: {ex.Message}", ex.StackTrace ?? "");
-        }
-    }
-
-    /// <summary>
-    /// Unified logging method that logs to both database and debug file
-    /// </summary>
-    static async Task LogAsync(LoggingService loggingService, LogLevel level, string message, string? detail = null)
-    {
-        // Always log to database
-        await loggingService.LogAsync("Hook.Claude", message, level, detail);
-
-        // Also log to debug file if enabled
-        if (_debugEnabled)
-        {
-            await WriteDebugLogAsync($"[{level}] {message}" + (detail != null ? $"\n  Detail: {detail}" : ""));
-        }
-    }
-
-    /// <summary>
-    /// Writes debug log entries to file when CLAUDELOG_DEBUG=1 environment variable is set.
-    /// Log file location: %USERPROFILE%\.claudelog\hook-claude-debug.log
-    /// </summary>
-    static async Task WriteDebugLogAsync(string message)
-    {
-        try
-        {
-            var debugLogPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".claudelog",
-                "hook-claude-debug.log"
-            );
-
-            var logDir = Path.GetDirectoryName(debugLogPath);
-            if (logDir != null && !Directory.Exists(logDir))
-            {
-                Directory.CreateDirectory(logDir);
-            }
-
-            var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-            var logMessage = $"[{timestamp}] {message}\n";
-
-            await File.AppendAllTextAsync(debugLogPath, logMessage);
-        }
-        catch
-        {
-            // Swallow debug logging errors to avoid breaking the hook
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", $"Failed to write entry: {ex.Message}", LogLevel.Error, ex.StackTrace ?? "");
         }
     }
 }

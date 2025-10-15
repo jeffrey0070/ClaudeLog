@@ -1,11 +1,11 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `ClaudeLog.Web/` – ASP.NET Core web UI (Razor Pages + Minimal APIs)
-- `ClaudeLog.Data/` – Data layer (ADO.NET, models, repositories, migrations in `Scripts/`)
-- `ClaudeLog.Hook.Claude/` – Claude Code stop hook (console)
-- `ClaudeLog.Hook.Codex/` – Codex hook (stdin/watcher modes)
-- `ClaudeLog.MCP/` – MCP server (STDIO)
+- `ClaudeLog.Web/` - ASP.NET Core web UI (Razor Pages + Minimal APIs)
+- `ClaudeLog.Data/` - Data layer (ADO.NET, models, repositories, migrations in `Scripts/`)
+- `ClaudeLog.Hook.Claude/` - Claude Code stop hook (console)
+- `ClaudeLog.Hook.Codex/` - Codex hook (stdin/watcher modes)
+- `ClaudeLog.MCP/` - MCP server (STDIO)
 - Root scripts: `ClaudeLog.update-and-run.bat`, `ClaudeLog.bat`
 
 ## Build, Test, and Development Commands

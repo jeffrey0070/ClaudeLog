@@ -7,7 +7,7 @@ REM Stops running instances, builds solution, publishes all components, and star
 REM Can be run from anywhere
 REM ============================================
 
-set "SOURCE_DIR=C:\Users\jeffr\source\repos\ClaudeLog"
+set "SOURCE_DIR=%~dp0"
 set "PUBLISH_ROOT=C:\Apps"
 set "WEB_PORT=15088"
 
@@ -98,8 +98,6 @@ echo   Publishing ClaudeLog.Web
 dotnet publish ClaudeLog.Web\ClaudeLog.Web.csproj ^
     -c Release ^
     -o "%PUBLISH_ROOT%\ClaudeLog.Web" ^
-    --runtime win-x64 ^
-    --self-contained false ^
     --nologo ^
     --verbosity quiet
 if %ERRORLEVEL% NEQ 0 (
@@ -113,8 +111,6 @@ echo   Publishing ClaudeLog.Hook.Claude
 dotnet publish ClaudeLog.Hook.Claude\ClaudeLog.Hook.Claude.csproj ^
     -c Release ^
     -o "%PUBLISH_ROOT%\ClaudeLog.Hook.Claude" ^
-    --runtime win-x64 ^
-    --self-contained false ^
     --nologo ^
     --verbosity quiet
 if %ERRORLEVEL% NEQ 0 (
@@ -128,8 +124,6 @@ echo   Publishing ClaudeLog.Hook.Codex
 dotnet publish ClaudeLog.Hook.Codex\ClaudeLog.Hook.Codex.csproj ^
     -c Release ^
     -o "%PUBLISH_ROOT%\ClaudeLog.Hook.Codex" ^
-    --runtime win-x64 ^
-    --self-contained false ^
     --nologo ^
     --verbosity quiet
 if %ERRORLEVEL% NEQ 0 (
@@ -143,8 +137,6 @@ echo   Publishing ClaudeLog.MCP
 dotnet publish ClaudeLog.MCP\ClaudeLog.MCP.csproj ^
     -c Release ^
     -o "%PUBLISH_ROOT%\ClaudeLog.MCP" ^
-    --runtime win-x64 ^
-    --self-contained false ^
     --nologo ^
     --verbosity quiet
 if %ERRORLEVEL% NEQ 0 (
