@@ -113,5 +113,21 @@ public class ConversationService
         await _entryRepository.UpdateDeletedAsync(id, isDeleted);
     }
 
+    /// <summary>
+    /// Updates an entry's question text
+    /// </summary>
+    public async Task UpdateQuestionAsync(long id, string question)
+    {
+        await _entryRepository.UpdateQuestionAsync(id, question);
+    }
+
+    /// <summary>
+    /// Updates an entry's response text
+    /// </summary>
+    public async Task UpdateResponseAsync(long id, string response)
+    {
+        await _entryRepository.UpdateResponseAsync(id, response);
+    }
+
     #endregion
 }

@@ -18,6 +18,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		CLAUDE.md = CLAUDE.md
 		ClaudeLog.bat = ClaudeLog.bat
 		ClaudeLog.update-and-run.bat = ClaudeLog.update-and-run.bat
+		config.toml = config.toml
 		CONTEXT.md = CONTEXT.md
 		PROJECT_PLAN.md = PROJECT_PLAN.md
 		README.md = README.md

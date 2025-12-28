@@ -1,0 +1,43 @@
+windows_wsl_setup_acknowledged = true
+
+# --- notify hook ---
+notify = [
+  "C:\\Apps\\ClaudeLog.Hook.Codex\\ClaudeLog.Hook.Codex.exe",
+  "--notify"
+]
+
+[features]
+experimental_windows_sandbox = true
+
+[projects.'\\?\C:\Users\jeffr\Source\repos\web-frontend']
+trust_level = "trusted"
+
+[projects.'\\?\C:\Users\jeffr\Source\repos\ClaudeLog']
+trust_level = "trusted"
+
+[projects.'C:\Users\jeffr\Source\repos']
+trust_level = "trusted"
+
+[projects.'\\?\C:\Users\jeffr\Source\repos\client-admin']
+trust_level = "trusted"
+
+# Sets the default profile to be used when no --profile flag is provided
+default_profile = "trusted"
+
+[projects.'C:\Users\jeffr']
+trust_level = "trusted"
+
+# --- Profiles ---
+
+# Define the "dev-write" profile using a TOML Table
+[profiles.dev-write]
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+network_access = "restricted"
+
+# Define the "trusted" profile using a TOML Table
+[profiles.trusted]
+sandbox_mode = "danger-full-access"
+approval_policy = "never"
+network_access = "enabled"
+model_reasoning_effort = "medium"

@@ -76,16 +76,22 @@ ClaudeLog captures every Q&A from your CLI conversations and stores them in SQL 
 
 **Option A: Hook**
 
-**Stdin mode** (preferred):
-- Codex invokes hook per turn with JSON payload
-- Hook extracts last Q&A and logs to database directly
+**Notify mode** (recommended with Codex 0.5+):
+1. Edit `%USERPROFILE%\.codex\config.toml`.
+2. **Important:** place the `notify = [...]` array near the top of the file (before any `[profiles.*]` blocks). The Codex CLI only reads `notify` from the root config; profile-scoped copies are ignored.
+3. Point `notify` at the published hook so Codex fires it every time a turn completes:
+   ```toml
+   notify = [
+     "C:\\Apps\\ClaudeLog.Hook.Codex\\ClaudeLog.Hook.Codex.exe",
+     "--notify"
+   ]
+   ```
+   Codex passes the JSON payload as the final argument; the hook parses the payload, ensures a stable session ID from `thread-id`, and writes the Q&A immediately without touching transcripts.
 
-**Watcher mode** (fallback):
+**Watcher mode** (fallback for older Codex builds):
 ```bash
 ClaudeLog.Hook.Codex.exe --watch "%USERPROFILE%\.codex\sessions"
 ```
-
-   **Note:** Hooks have known issues with Codex
 
    **Option B: MCP Server**
 

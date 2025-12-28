@@ -9,6 +9,8 @@ let selectedEntryId = null;
 let allEntries = [];
 let includeDeleted = false;
 let showFavoritesOnly = false;
+let isAddEntryPanelOpen = false;
+let currentSessionForNewEntry = null;
 
 /**
  * Debounce function to limit API calls during search typing
@@ -113,6 +115,11 @@ function renderEntriesList(entries) {
             <div class="section-group mb-3">
                 <div class="section-header p-2 bg-light fw-bold text-muted small d-flex align-items-center ${sectionClass}">
                     <span class="flex-grow-1">${sectionDate} ${sectionTime} - ${session.tool}</span>
+                    <button class="btn btn-sm btn-link p-0 me-2"
+                            onclick="event.stopPropagation(); showAddEntryPanel('${sessionId}')"
+                            title="Add entry to this session">
+                        ➕
+                    </button>
                     <button class="btn btn-sm btn-link p-0 delete-btn"
                             onclick="event.stopPropagation(); toggleSessionDeleted('${sessionId}', ${!sectionDeleted})"
                             title="${sectionDeleteTitle}">
@@ -196,9 +203,20 @@ function renderEntryDetail(entry) {
         <div class="entry-detail">
             <div class="mb-3 d-flex justify-content-between align-items-start">
                 <div style="flex: 1;">
-                    <h4 id="entryTitle" class="editable-title" onclick="editTitle(${entry.id}, this)">
-                        ${escapeHtml(title)}
-                    </h4>
+                    <div class="d-flex align-items-center gap-2">
+                        <h4 id="entryTitle" class="mb-0" data-entry-id="${entry.id}" data-original-title="${escapeHtml(title)}">
+                            ${escapeHtml(title)}
+                        </h4>
+                        <button id="editTitleBtn" class="btn btn-sm btn-link p-0 text-muted" onclick="startEditTitle()" title="Edit title" style="font-size: 1rem;">
+                            ✏️
+                        </button>
+                        <button id="saveTitleBtn" class="btn btn-sm btn-link p-0 text-success" onclick="saveEditedTitle()" title="Save" style="font-size: 1rem; display: none;">
+                            ✓
+                        </button>
+                        <button id="cancelTitleBtn" class="btn btn-sm btn-link p-0 text-danger" onclick="cancelEditTitle()" title="Cancel" style="font-size: 1rem; display: none;">
+                            ✗
+                        </button>
+                    </div>
                     <div class="small text-muted">
                         ${timestamp} | Session: ${entry.sessionId} | ${entry.tool}
                     </div>
@@ -216,11 +234,22 @@ function renderEntryDetail(entry) {
             <div class="mb-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h5>Question</h5>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="copyToClipboard('question')">
-                        Copy
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button id="editQuestionBtn" class="btn btn-sm btn-link p-0 text-muted" onclick="startEditQuestion()" title="Edit question" style="font-size: 1rem;">
+                            ✏️
+                        </button>
+                        <button id="saveQuestionBtn" class="btn btn-sm btn-link p-0 text-success" onclick="saveEditedQuestion()" title="Save" style="font-size: 1rem; display: none;">
+                            ✓
+                        </button>
+                        <button id="cancelQuestionBtn" class="btn btn-sm btn-link p-0 text-danger" onclick="cancelEditQuestion()" title="Cancel" style="font-size: 1rem; display: none;">
+                            ✗
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="copyToClipboard('question')">
+                            Copy
+                        </button>
+                    </div>
                 </div>
-                <div id="question" class="p-3 bg-light border rounded" data-raw="${escapeHtml(question)}">
+                <div id="question" class="p-3 bg-light border rounded" data-raw="${escapeHtml(question)}" data-entry-id="${entry.id}">
                     ${escapeHtml(question)}
                 </div>
             </div>
@@ -228,7 +257,16 @@ function renderEntryDetail(entry) {
             <div class="mb-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h5>Response</h5>
-                    <div>
+                    <div class="d-flex gap-2">
+                        <button id="editResponseBtn" class="btn btn-sm btn-link p-0 text-muted" onclick="startEditResponse()" title="Edit response" style="font-size: 1rem;">
+                            ✏️
+                        </button>
+                        <button id="saveResponseBtn" class="btn btn-sm btn-link p-0 text-success" onclick="saveEditedResponse()" title="Save" style="font-size: 1rem; display: none;">
+                            ✓
+                        </button>
+                        <button id="cancelResponseBtn" class="btn btn-sm btn-link p-0 text-danger" onclick="cancelEditResponse()" title="Cancel" style="font-size: 1rem; display: none;">
+                            ✗
+                        </button>
                         <button class="btn btn-sm btn-outline-secondary" onclick="copyToClipboard('response')">
                             Copy
                         </button>
@@ -237,7 +275,7 @@ function renderEntryDetail(entry) {
                         </button>
                     </div>
                 </div>
-                <div id="response" class="p-3 bg-light border rounded markdown-content" data-raw="${escapeHtml(response)}">
+                <div id="response" class="p-3 bg-light border rounded markdown-content" data-raw="${escapeHtml(response)}" data-entry-id="${entry.id}">
                     ${renderMarkdown(response)}
                 </div>
             </div>
@@ -254,46 +292,318 @@ function renderMarkdown(text) {
         .replace(/\n/g, '<br>');
 }
 
-// Edit title inline
-function editTitle(id, element) {
-    const currentTitle = element.textContent.trim();
+/**
+ * Starts editing the title by converting it to an input field.
+ */
+function startEditTitle() {
+    const titleElement = document.getElementById('entryTitle');
+    const currentTitle = titleElement.textContent.trim();
+
+    // Replace h4 with input
     const input = document.createElement('input');
     input.type = 'text';
     input.value = currentTitle;
-    input.className = 'form-control';
-    input.onblur = () => saveTitle(id, input.value, element);
-    input.onkeypress = (e) => {
-        if (e.key === 'Enter') {
-            input.blur();
-        }
-    };
+    input.id = 'entryTitleInput';
+    input.className = 'form-control form-control-sm';
+    input.style.width = '100%';
 
-    element.innerHTML = '';
-    element.appendChild(input);
+    // Store entry ID on the input for later use
+    input.dataset.entryId = titleElement.dataset.entryId;
+    input.dataset.originalTitle = titleElement.dataset.originalTitle;
+
+    titleElement.replaceWith(input);
     input.focus();
+    input.select();
+
+    // Toggle button visibility
+    document.getElementById('editTitleBtn').style.display = 'none';
+    document.getElementById('saveTitleBtn').style.display = 'inline-block';
+    document.getElementById('cancelTitleBtn').style.display = 'inline-block';
+
+    // Allow Enter key to save
+    input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            saveEditedTitle();
+        } else if (e.key === 'Escape') {
+            cancelEditTitle();
+        }
+    });
 }
 
-// Save edited title
-async function saveTitle(id, newTitle, element) {
+/**
+ * Saves the edited title to the server.
+ */
+async function saveEditedTitle() {
+    const input = document.getElementById('entryTitleInput');
+    if (!input) return;
+
+    const newTitle = input.value.trim();
+    const entryId = input.dataset.entryId;
+
     try {
-        const response = await fetch(`/api/entries/${id}/title`, {
+        const response = await fetch(`/api/entries/${entryId}/title`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title: newTitle })
         });
 
         if (response.ok) {
-            element.textContent = newTitle;
+            // Replace input with h4
+            const h4 = document.createElement('h4');
+            h4.id = 'entryTitle';
+            h4.className = 'mb-0';
+            h4.dataset.entryId = entryId;
+            h4.dataset.originalTitle = newTitle;
+            h4.textContent = newTitle;
+
+            input.replaceWith(h4);
+
+            // Toggle button visibility
+            document.getElementById('editTitleBtn').style.display = 'inline-block';
+            document.getElementById('saveTitleBtn').style.display = 'none';
+            document.getElementById('cancelTitleBtn').style.display = 'none';
+
             // Update in list
-            const listItem = document.querySelector(`[data-entry-id="${id}"] .entry-title`);
+            const listItem = document.querySelector(`[data-entry-id="${entryId}"] .entry-title`);
             if (listItem) {
                 listItem.textContent = newTitle;
             }
+
+            showToast('Title updated!');
+        } else {
+            showToast('Failed to save title');
         }
     } catch (error) {
         console.error('Error saving title:', error);
         logError('UI', 'Failed to save title', error.toString());
+        showToast('Error saving title');
     }
+}
+
+/**
+ * Cancels editing the title and reverts to the original value.
+ */
+function cancelEditTitle() {
+    const input = document.getElementById('entryTitleInput');
+    if (!input) return;
+
+    const originalTitle = input.dataset.originalTitle;
+    const entryId = input.dataset.entryId;
+
+    // Replace input with h4
+    const h4 = document.createElement('h4');
+    h4.id = 'entryTitle';
+    h4.className = 'mb-0';
+    h4.dataset.entryId = entryId;
+    h4.dataset.originalTitle = originalTitle;
+    h4.textContent = originalTitle;
+
+    input.replaceWith(h4);
+
+    // Toggle button visibility
+    document.getElementById('editTitleBtn').style.display = 'inline-block';
+    document.getElementById('saveTitleBtn').style.display = 'none';
+    document.getElementById('cancelTitleBtn').style.display = 'none';
+}
+
+/**
+ * Starts editing the question by converting it to a textarea field.
+ */
+function startEditQuestion() {
+    const questionElement = document.getElementById('question');
+    const currentQuestion = questionElement.dataset.raw || questionElement.textContent.trim();
+
+    // Replace div with textarea
+    const textarea = document.createElement('textarea');
+    textarea.value = currentQuestion;
+    textarea.id = 'questionTextarea';
+    textarea.className = 'form-control';
+    textarea.rows = 10;
+    textarea.dataset.entryId = questionElement.dataset.entryId;
+    textarea.dataset.originalValue = currentQuestion;
+
+    questionElement.replaceWith(textarea);
+    textarea.focus();
+
+    // Toggle button visibility
+    document.getElementById('editQuestionBtn').style.display = 'none';
+    document.getElementById('saveQuestionBtn').style.display = 'inline-block';
+    document.getElementById('cancelQuestionBtn').style.display = 'inline-block';
+}
+
+/**
+ * Saves the edited question to the server.
+ */
+async function saveEditedQuestion() {
+    const textarea = document.getElementById('questionTextarea');
+    if (!textarea) return;
+
+    const newQuestion = textarea.value.trim();
+    const entryId = textarea.dataset.entryId;
+
+    if (!newQuestion) {
+        showToast('Question cannot be empty');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/entries/${entryId}/question`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question: newQuestion })
+        });
+
+        if (response.ok) {
+            // Replace textarea with div
+            const div = document.createElement('div');
+            div.id = 'question';
+            div.className = 'p-3 bg-light border rounded';
+            div.dataset.raw = newQuestion;
+            div.dataset.entryId = entryId;
+            div.textContent = newQuestion;
+
+            textarea.replaceWith(div);
+
+            // Toggle button visibility
+            document.getElementById('editQuestionBtn').style.display = 'inline-block';
+            document.getElementById('saveQuestionBtn').style.display = 'none';
+            document.getElementById('cancelQuestionBtn').style.display = 'none';
+
+            showToast('Question updated!');
+        } else {
+            showToast('Failed to save question');
+        }
+    } catch (error) {
+        console.error('Error saving question:', error);
+        logError('UI', 'Failed to save question', error.toString());
+        showToast('Error saving question');
+    }
+}
+
+/**
+ * Cancels editing the question and reverts to the original value.
+ */
+function cancelEditQuestion() {
+    const textarea = document.getElementById('questionTextarea');
+    if (!textarea) return;
+
+    const originalValue = textarea.dataset.originalValue;
+    const entryId = textarea.dataset.entryId;
+
+    // Replace textarea with div
+    const div = document.createElement('div');
+    div.id = 'question';
+    div.className = 'p-3 bg-light border rounded';
+    div.dataset.raw = originalValue;
+    div.dataset.entryId = entryId;
+    div.textContent = originalValue;
+
+    textarea.replaceWith(div);
+
+    // Toggle button visibility
+    document.getElementById('editQuestionBtn').style.display = 'inline-block';
+    document.getElementById('saveQuestionBtn').style.display = 'none';
+    document.getElementById('cancelQuestionBtn').style.display = 'none';
+}
+
+/**
+ * Starts editing the response by converting it to a textarea field.
+ */
+function startEditResponse() {
+    const responseElement = document.getElementById('response');
+    const currentResponse = responseElement.dataset.raw || responseElement.textContent.trim();
+
+    // Replace div with textarea
+    const textarea = document.createElement('textarea');
+    textarea.value = currentResponse;
+    textarea.id = 'responseTextarea';
+    textarea.className = 'form-control';
+    textarea.rows = 15;
+    textarea.dataset.entryId = responseElement.dataset.entryId;
+    textarea.dataset.originalValue = currentResponse;
+
+    responseElement.replaceWith(textarea);
+    textarea.focus();
+
+    // Toggle button visibility
+    document.getElementById('editResponseBtn').style.display = 'none';
+    document.getElementById('saveResponseBtn').style.display = 'inline-block';
+    document.getElementById('cancelResponseBtn').style.display = 'inline-block';
+}
+
+/**
+ * Saves the edited response to the server.
+ */
+async function saveEditedResponse() {
+    const textarea = document.getElementById('responseTextarea');
+    if (!textarea) return;
+
+    const newResponse = textarea.value.trim();
+    const entryId = textarea.dataset.entryId;
+
+    if (!newResponse) {
+        showToast('Response cannot be empty');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/entries/${entryId}/response`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ response: newResponse })
+        });
+
+        if (response.ok) {
+            // Replace textarea with div
+            const div = document.createElement('div');
+            div.id = 'response';
+            div.className = 'p-3 bg-light border rounded markdown-content';
+            div.dataset.raw = newResponse;
+            div.dataset.entryId = entryId;
+            div.innerHTML = renderMarkdown(newResponse);
+
+            textarea.replaceWith(div);
+
+            // Toggle button visibility
+            document.getElementById('editResponseBtn').style.display = 'inline-block';
+            document.getElementById('saveResponseBtn').style.display = 'none';
+            document.getElementById('cancelResponseBtn').style.display = 'none';
+
+            showToast('Response updated!');
+        } else {
+            showToast('Failed to save response');
+        }
+    } catch (error) {
+        console.error('Error saving response:', error);
+        logError('UI', 'Failed to save response', error.toString());
+        showToast('Error saving response');
+    }
+}
+
+/**
+ * Cancels editing the response and reverts to the original value.
+ */
+function cancelEditResponse() {
+    const textarea = document.getElementById('responseTextarea');
+    if (!textarea) return;
+
+    const originalValue = textarea.dataset.originalValue;
+    const entryId = textarea.dataset.entryId;
+
+    // Replace textarea with div
+    const div = document.createElement('div');
+    div.id = 'response';
+    div.className = 'p-3 bg-light border rounded markdown-content';
+    div.dataset.raw = originalValue;
+    div.dataset.entryId = entryId;
+    div.innerHTML = renderMarkdown(originalValue);
+
+    textarea.replaceWith(div);
+
+    // Toggle button visibility
+    document.getElementById('editResponseBtn').style.display = 'inline-block';
+    document.getElementById('saveResponseBtn').style.display = 'none';
+    document.getElementById('cancelResponseBtn').style.display = 'none';
 }
 
 // Copy to clipboard
@@ -525,6 +835,106 @@ function toggleLeftPanel() {
         leftPanel.classList.add('collapsed');
         resizeHandle.style.display = 'none';
     }
+}
+
+/**
+ * Shows the panel to add a new entry to a specific session.
+ * @param {string} sessionId - The session ID to add the entry to
+ */
+function showAddEntryPanel(sessionId) {
+    currentSessionForNewEntry = sessionId;
+    isAddEntryPanelOpen = true;
+
+    const detailView = document.getElementById('detailView');
+    detailView.innerHTML = `
+        <div class="add-entry-panel">
+            <h4 class="mb-3">Add New Entry</h4>
+            <div class="mb-3">
+                <label for="newQuestion" class="form-label">Question</label>
+                <textarea id="newQuestion" class="form-control" rows="5" placeholder="Enter question..."></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="newResponse" class="form-label">Response</label>
+                <textarea id="newResponse" class="form-control" rows="10" placeholder="Enter response..."></textarea>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary" onclick="saveNewEntry()">Save</button>
+                <button class="btn btn-secondary" onclick="cancelAddEntry()">Cancel</button>
+            </div>
+        </div>
+    `;
+
+    // Focus on the question field
+    document.getElementById('newQuestion').focus();
+}
+
+/**
+ * Saves the new entry to the session using the API.
+ */
+async function saveNewEntry() {
+    const question = document.getElementById('newQuestion').value.trim();
+    const response = document.getElementById('newResponse').value.trim();
+
+    // Validate inputs
+    if (!question) {
+        showToast('Please enter a question');
+        return;
+    }
+    if (!response) {
+        showToast('Please enter a response');
+        return;
+    }
+
+    try {
+        // Call API to create entry
+        const apiResponse = await fetch('/api/entries', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionId: currentSessionForNewEntry,
+                question: question,
+                response: response
+            })
+        });
+
+        if (apiResponse.ok) {
+            const result = await apiResponse.json();
+            showToast('Entry added successfully!');
+
+            // Close panel and reload entries
+            cancelAddEntry();
+            loadEntries(currentSearch, 1, false);
+
+            // Select the newly created entry
+            if (result.id) {
+                setTimeout(() => selectEntry(result.id), 500);
+            }
+        } else {
+            const errorText = await apiResponse.text();
+            showToast('Failed to save entry: ' + errorText);
+            logError('UI', 'Failed to save new entry', errorText);
+        }
+    } catch (error) {
+        console.error('Error saving entry:', error);
+        showToast('Error saving entry');
+        logError('UI', 'Error saving new entry', error.toString());
+    }
+}
+
+/**
+ * Cancels adding a new entry and returns to the previous view.
+ */
+function cancelAddEntry() {
+    isAddEntryPanelOpen = false;
+    currentSessionForNewEntry = null;
+
+    // Return to default view
+    const detailView = document.getElementById('detailView');
+    detailView.innerHTML = `
+        <div class="text-center text-muted p-5">
+            <h4>Select a conversation to view details</h4>
+        </div>
+    `;
 }
 
 // Initialize on page load

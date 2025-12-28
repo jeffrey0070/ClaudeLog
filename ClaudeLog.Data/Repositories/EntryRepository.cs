@@ -242,6 +242,56 @@ public class EntryRepository
     }
 
     /// <summary>
+    /// Updates the question of a conversation entry
+    /// </summary>
+    /// <param name="id">The entry ID to update</param>
+    /// <param name="question">The new question text (required)</param>
+    public async Task UpdateQuestionAsync(long id, string question)
+    {
+        if (string.IsNullOrWhiteSpace(question))
+            throw new ArgumentException("Question cannot be null or empty", nameof(question));
+
+        using var conn = _dbContext.CreateConnection();
+        await conn.OpenAsync();
+
+        var query = @"
+            UPDATE dbo.Conversations
+            SET Question = @Question
+            WHERE Id = @Id";
+
+        using var cmd = new SqlCommand(query, conn);
+        cmd.Parameters.AddWithValue("@Id", id);
+        cmd.Parameters.AddWithValue("@Question", question.Trim());
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Updates the response of a conversation entry
+    /// </summary>
+    /// <param name="id">The entry ID to update</param>
+    /// <param name="response">The new response text (required)</param>
+    public async Task UpdateResponseAsync(long id, string response)
+    {
+        if (string.IsNullOrWhiteSpace(response))
+            throw new ArgumentException("Response cannot be null or empty", nameof(response));
+
+        using var conn = _dbContext.CreateConnection();
+        await conn.OpenAsync();
+
+        var query = @"
+            UPDATE dbo.Conversations
+            SET Response = @Response
+            WHERE Id = @Id";
+
+        using var cmd = new SqlCommand(query, conn);
+        cmd.Parameters.AddWithValue("@Id", id);
+        cmd.Parameters.AddWithValue("@Response", response.Trim());
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Gets the total count of conversation entries matching the search criteria
     /// </summary>
     /// <param name="search">Search term to filter by (optional)</param>

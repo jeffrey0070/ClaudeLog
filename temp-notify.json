@@ -1,0 +1,6 @@
+{
+  "type": "agent-turn-complete",
+  "thread-id": "manual",
+  "input-messages": ["Ping"],
+  "last-assistant-message": "Pong"
+}

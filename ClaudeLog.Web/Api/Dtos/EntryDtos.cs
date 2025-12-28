@@ -14,6 +14,10 @@ public record UpdateFavoriteRequest(bool IsFavorite);
 
 public record UpdateDeletedRequest(bool IsDeleted);
 
+public record UpdateQuestionRequest(string Question);
+
+public record UpdateResponseRequest(string Response);
+
 public record EntryListDto(
     long Id,
     string Title,

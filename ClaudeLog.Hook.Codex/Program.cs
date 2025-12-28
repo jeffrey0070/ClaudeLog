@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Linq;
 using ClaudeLog.Data;
 using ClaudeLog.Data.Models;
 using ClaudeLog.Data.Services;
@@ -97,6 +98,22 @@ class Program
                 return 0;
             }
 
+            if (args.Length > 0 && string.Equals(args[0], "--notify", StringComparison.OrdinalIgnoreCase))
+            {
+                var payload = args.Length > 1 ? string.Join(" ", args.Skip(1)) : "";
+                await ProcessNotifyPayloadAsync(payload);
+                Console.WriteLine("{}");
+                return 0;
+            }
+
+            if (args.Length > 0 && LooksLikeNotifyPayload(string.Join(" ", args)))
+            {
+                var payload = string.Join(" ", args);
+                await ProcessNotifyPayloadAsync(payload);
+                Console.WriteLine("{}");
+                return 0;
+            }
+
             // stdin mode (preferred)
             using var reader = new StreamReader(Console.OpenStandardInput());
             var input = await reader.ReadToEndAsync();
@@ -185,6 +202,174 @@ class Program
             }
         }
         Console.WriteLine("Watcher stopped.");
+    }
+
+    private static async Task ProcessNotifyPayloadAsync(string payload)
+    {
+        payload = NormalizeNotifyPayload(payload);
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Codex", "Notify payload missing", LogLevel.Warning);
+            return;
+        }
+
+        try
+        {
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Codex", $"Notify payload received ({payload.Length} chars)", LogLevel.Debug, payload.Length > 4000 ? payload[..4000] : payload);
+            using var doc = JsonDocument.Parse(payload);
+            var root = doc.RootElement;
+
+            var type = root.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
+            if (!string.Equals(type, "agent-turn-complete", StringComparison.OrdinalIgnoreCase))
+            {
+                if (_debugEnabled)
+                {
+                    await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Codex", $"Notify ignored (type={type ?? "null"})", LogLevel.Debug);
+                }
+                return;
+            }
+
+            var inputMessages = ExtractInputMessages(root);
+            var question = ComposeQuestion(inputMessages);
+            var response = root.TryGetProperty("last-assistant-message", out var respEl) ? respEl.GetString() : null;
+            if (string.IsNullOrWhiteSpace(question) || string.IsNullOrWhiteSpace(response))
+            {
+                if (_debugEnabled)
+                {
+                    await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Codex", "Notify payload missing Q&A content", LogLevel.Debug);
+                }
+                return;
+            }
+
+            var sessionIdHint = ExtractString(root, "session-id") ??
+                                ExtractString(root, "session_id") ??
+                                ExtractString(root, "thread-id") ??
+                                ExtractString(root, "thread_id");
+            var threadId = ExtractString(root, "thread-id") ?? ExtractString(root, "thread_id");
+            var sessionGuid = NormalizeNotifySessionId(sessionIdHint, payload);
+
+            question = question.Trim();
+            response = response.Trim();
+
+            var checkpointKey = $"notify:{threadId ?? sessionGuid}";
+            var hash = HashPair(question, response);
+            if (CheckpointStore.IsDuplicate(checkpointKey, hash))
+            {
+                if (_debugEnabled)
+                {
+                    await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Codex", $"Notify duplicate skipped (thread={threadId})", LogLevel.Debug);
+                }
+                return;
+            }
+
+            await EnsureSessionAsync(sessionGuid);
+            await WriteEntryAsync(sessionGuid, question, response);
+
+            CheckpointStore.Update(checkpointKey, new CheckpointRecord
+            {
+                LastSize = inputMessages.Count,
+                LastHash = hash,
+                LastEntryAt = DateTime.Now
+            });
+        }
+        catch (Exception ex)
+        {
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Codex", $"Failed to process notify payload: {ex.Message}", LogLevel.Error, ex.StackTrace ?? "");
+        }
+    }
+
+    private static bool LooksLikeNotifyPayload(string raw)
+    {
+        var normalized = NormalizeNotifyPayload(raw);
+        return !string.IsNullOrWhiteSpace(normalized) &&
+               normalized.StartsWith("{", StringComparison.Ordinal) &&
+               normalized.Contains("\"type\"", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeNotifyPayload(string payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload)) return string.Empty;
+
+        var trimmed = payload.Trim();
+        if (trimmed.Length >= 2)
+        {
+            var first = trimmed[0];
+            var last = trimmed[^1];
+            if ((first == '\'' && last == '\'') || (first == '"' && last == '"'))
+            {
+                trimmed = trimmed.Substring(1, trimmed.Length - 2);
+            }
+        }
+        return trimmed.Trim();
+    }
+
+    private static string NormalizeNotifySessionId(string? sessionHint, string payloadSeed)
+    {
+        if (!string.IsNullOrWhiteSpace(sessionHint) && Guid.TryParse(sessionHint, out var parsed))
+        {
+            return parsed.ToString();
+        }
+
+        var seed = sessionHint;
+        if (string.IsNullOrWhiteSpace(seed))
+        {
+            seed = payloadSeed;
+        }
+
+        return DeterministicGuidFromString(seed).ToString();
+    }
+
+    private static List<string> ExtractInputMessages(JsonElement root)
+    {
+        var messages = new List<string>();
+        if (root.TryGetProperty("input-messages", out var inputEl) || root.TryGetProperty("input_messages", out inputEl))
+        {
+            if (inputEl.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in inputEl.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.String)
+                    {
+                        messages.Add(item.GetString() ?? string.Empty);
+                    }
+                    else if (item.ValueKind == JsonValueKind.Object && item.TryGetProperty("text", out var textEl) && textEl.ValueKind == JsonValueKind.String)
+                    {
+                        messages.Add(textEl.GetString() ?? string.Empty);
+                    }
+                    else if (item.ValueKind == JsonValueKind.Undefined || item.ValueKind == JsonValueKind.Null)
+                    {
+                        continue;
+                    }
+                    else
+                    {
+                        messages.Add(item.ToString());
+                    }
+                }
+            }
+        }
+        return messages;
+    }
+
+    private static string ComposeQuestion(List<string> messages)
+    {
+        for (var i = messages.Count - 1; i >= 0; i--)
+        {
+            var message = messages[i];
+            if (!string.IsNullOrWhiteSpace(message))
+            {
+                return message;
+            }
+        }
+        return string.Empty;
+    }
+
+    private static string? ExtractString(JsonElement root, string propertyName)
+    {
+        if (root.TryGetProperty(propertyName, out var el) && el.ValueKind == JsonValueKind.String)
+        {
+            return el.GetString();
+        }
+        return null;
     }
 
     private static async Task ProcessTranscriptOnceAsync(string sessionId, string transcriptPath)
