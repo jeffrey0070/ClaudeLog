@@ -168,7 +168,7 @@ startup_timeout_ms = 20000
 **Database connection (single source of truth):**
 - `CLAUDELOG_CONNECTION_STRING` - Database connection string (required)
   - All components (Web, Hooks, MCP, services) read this value.
-  - Use `ClaudeLog.set-connection-string.bat` (run as Administrator) to configure it at the machine level.
+  - Use `set-connection-string.bat` (run as Administrator) to configure it at the machine level.
 
 **Hook/MCP environment variables:**
 - `CLAUDELOG_DEBUG` - Set to `1` to enable debug logging to `%USERPROFILE%\.claudelog\hook-claude-debug.log` (Claude hook)

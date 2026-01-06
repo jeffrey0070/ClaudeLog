@@ -18,7 +18,7 @@ var connectionString = Environment.GetEnvironmentVariable("CLAUDELOG_CONNECTION_
 if (string.IsNullOrWhiteSpace(connectionString))
 {
     Console.WriteLine("ERROR: CLAUDELOG_CONNECTION_STRING environment variable is not set.");
-    Console.WriteLine("Please run ClaudeLog.set-connection-string.bat or configure the variable manually.");
+    Console.WriteLine("Please run set-connection-string.bat or configure the variable manually.");
     return;
 }
 
