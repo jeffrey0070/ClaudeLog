@@ -4,6 +4,13 @@ using ClaudeLog.Web.Middleware;
 using ClaudeLog.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+var config = builder.Configuration;
+var urls = config["Kestrel:Endpoints:Http:Url"]
+    ?? config["urls"]
+    ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS")
+    ?? (builder.Environment.IsDevelopment() ? "http://localhost:15089" : "http://localhost:15088");
+
+builder.WebHost.UseUrls(urls);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
@@ -45,10 +52,6 @@ if (!dbInitialized)
 
 // Display startup info
 var env = app.Environment;
-var config = app.Configuration;
-var urls = config["Kestrel:Endpoints:Http:Url"]
-    ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS")
-    ?? (app.Environment.IsDevelopment() ? "http://localhost:15089" : "http://localhost:15088");
 
 Console.WriteLine("========================================");
 Console.WriteLine("ClaudeLog - Conversation Logger");
