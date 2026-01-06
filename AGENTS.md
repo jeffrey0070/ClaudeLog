@@ -13,7 +13,7 @@
 - Run Web (dev): `dotnet run --project ClaudeLog.Web --urls http://localhost:15089`
 - Publish + run (prod-like): `ClaudeLog.update-and-run.bat` (publishes to `C:\Apps\ClaudeLog.*` and starts Web on `http://localhost:15088`)
 - Run published Web: `ClaudeLog.bat`
-- Connection string: configure in `ClaudeLog.Web/appsettings*.json` or `CLAUDELOG_CONNECTION_STRING` env var.
+- Connection string: configure via `CLAUDELOG_CONNECTION_STRING` environment variable (preferred). Use `ClaudeLog.set-connection-string.bat` to set it.
 
 ## Coding Style & Naming Conventions
 - C# (net9.0), `Nullable` and `ImplicitUsings` enabled. Use 4-space indentation.

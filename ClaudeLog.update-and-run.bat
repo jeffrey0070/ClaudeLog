@@ -165,3 +165,7 @@ set ASPNETCORE_URLS=http://localhost:%WEB_PORT%
 ClaudeLog.Web.exe
 
 endlocal
+echo.
+echo Press Enter to exit...
+pause
+

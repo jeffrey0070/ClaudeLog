@@ -54,3 +54,7 @@ if %ERRORLEVEL% NEQ 0 (
 set ASPNETCORE_ENVIRONMENT=Production
 set ASPNETCORE_URLS=http://localhost:15088
 ClaudeLog.Web.exe
+
+echo.
+echo Press Enter to exit...
+pause

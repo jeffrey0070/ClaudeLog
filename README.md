@@ -165,17 +165,12 @@ startup_timeout_ms = 20000
 - Production: 15088 (configured in `ClaudeLog.update-and-run.bat`)
 - Development: 15089 (configured in `appsettings.Development.json`)
 
-**Database connection** (`ClaudeLog.Web/appsettings.json`):
-```json
-{
-  "ConnectionStrings": {
-    "ClaudeLog": "Server=localhost;Database=ClaudeLog;Integrated Security=true;TrustServerCertificate=true;"
-  }
-}
-```
+**Database connection (single source of truth):**
+- `CLAUDELOG_CONNECTION_STRING` - Database connection string (required)
+  - All components (Web, Hooks, MCP) read this value.
+  - Use `ClaudeLog.set-connection-string.bat` to configure it for your user.
 
 **Hook/MCP environment variables:**
-- `CLAUDELOG_CONNECTION_STRING` - Database connection string (optional, defaults to localhost)
 - `CLAUDELOG_DEBUG` - Set to `1` to enable debug logging to `%USERPROFILE%\.claudelog\hook-claude-debug.log` (Claude hook)
 - `CLAUDELOG_WAIT_FOR_DEBUGGER` - Set to `1` to pause hook and wait for Visual Studio debugger attachment (Claude hook)
 - `CLAUDELOG_DEBUGGER_WAIT_SECONDS` - Seconds to wait for debugger (default: 60)

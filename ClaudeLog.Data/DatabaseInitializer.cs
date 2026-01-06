@@ -105,15 +105,9 @@ public class DatabaseInitializer
         Console.WriteLine($"ERROR: Cannot connect to SQL Server {connectionString}");
         Console.WriteLine("========================================");
         Console.WriteLine();
-        Console.WriteLine("Please check your connection string configuration:");
+        Console.WriteLine("Please configure the connection string using the environment variable:");
         Console.WriteLine();
-        Console.WriteLine("1. Update appsettings.json:");
-        Console.WriteLine("   \"ConnectionStrings\": {");
-        Console.WriteLine("     \"ClaudeLog\": \"Server=YOUR_SERVER;Database=ClaudeLog;Integrated Security=true;TrustServerCertificate=true;\"");
-        Console.WriteLine("   }");
-        Console.WriteLine();
-        Console.WriteLine("2. Or set environment variable:");
-        Console.WriteLine("   CLAUDELOG_CONNECTION_STRING=\"Server=YOUR_SERVER;Database=ClaudeLog;...\"");
+        Console.WriteLine("   CLAUDELOG_CONNECTION_STRING=\"Server=YOUR_SERVER;Database=ClaudeLog;Integrated Security=true;TrustServerCertificate=true;\"");
         Console.WriteLine();
         Console.WriteLine("Common SQL Server names:");
         Console.WriteLine("  - localhost");

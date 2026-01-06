@@ -1,3 +1,4 @@
+using System;
 using ClaudeLog.Web.Api;
 using ClaudeLog.Web.Middleware;
 using ClaudeLog.Web.Services;
@@ -12,9 +13,17 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.DictionaryKeyPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
 });
 
+// Read connection string from environment (single source of truth)
+var connectionString = Environment.GetEnvironmentVariable("CLAUDELOG_CONNECTION_STRING");
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    Console.WriteLine("ERROR: CLAUDELOG_CONNECTION_STRING environment variable is not set.");
+    Console.WriteLine("Please run ClaudeLog.set-connection-string.bat or configure the variable manually.");
+    return;
+}
+
 // Register data layer services
-var connectionString = builder.Configuration.GetConnectionString("ClaudeLog");
-builder.Services.AddSingleton(new ClaudeLog.Data.DbContext(connectionString));
+builder.Services.AddSingleton(new ClaudeLog.Data.DbContext());
 builder.Services.AddScoped<ClaudeLog.Data.Services.ConversationService>();
 builder.Services.AddScoped<ClaudeLog.Data.Services.DiagnosticsService>();
 
@@ -46,7 +55,7 @@ Console.WriteLine("ClaudeLog - Conversation Logger");
 Console.WriteLine("========================================");
 Console.WriteLine($"Environment: {env.EnvironmentName}");
 Console.WriteLine($"Listening on: {urls}");
-Console.WriteLine($"Database: {config.GetConnectionString("ClaudeLog")}");
+Console.WriteLine($"Database: {connectionString}");
 Console.WriteLine("========================================");
 Console.WriteLine("Press Ctrl+C to shut down");
 Console.WriteLine();
