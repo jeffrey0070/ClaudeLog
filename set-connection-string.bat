@@ -6,12 +6,14 @@ echo ClaudeLog - Set Connection String
 echo ============================================
 echo.
 echo This script sets the CLAUDELOG_CONNECTION_STRING environment
-echo variable for your user account so all ClaudeLog components
-echo (Web, Hooks, MCP) use the same database.
+echo variable at the MACHINE level so all ClaudeLog components
+echo (Web, Hooks, MCP, services) use the same database.
+echo NOTE: You must run this script from an elevated
+echo       "Run as administrator" command prompt.
 echo example: Server=localhost;Database=ClaudeLog;User Id=myUsername;Password=myPassword;TrustServerCertificate=true;
 echo example: Server=localhost;Database=ClaudeLog;Integrated Security=true;TrustServerCertificate=true;
 echo.
-echo Current CLAUDELOG_CONNECTION_STRING:
+echo Current CLAUDELOG_CONNECTION_STRING (process view):
 if defined CLAUDELOG_CONNECTION_STRING (
     echo   %CLAUDELOG_CONNECTION_STRING%
 ) else (
@@ -29,12 +31,12 @@ if "%connString%"=="" (
 )
 
 echo.
-echo Setting CLAUDELOG_CONNECTION_STRING for current user...
-setx CLAUDELOG_CONNECTION_STRING "%connString%" >nul
+echo Setting system-wide CLAUDELOG_CONNECTION_STRING...
+setx CLAUDELOG_CONNECTION_STRING "%connString%" /M >nul
 
 echo.
 echo Done.
-echo NOTE: You must open a NEW command prompt or restart any running shells/IDEs for the new value to take effect.
+echo NOTE: You must open a NEW command prompt or restart any running shells/IDEs/services for the new value to take effect.
 
 :End
 echo.
