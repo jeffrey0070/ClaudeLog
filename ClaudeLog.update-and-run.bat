@@ -148,6 +148,16 @@ if %ERRORLEVEL% NEQ 0 (
 echo   All components published successfully.
 echo.
 
+REM Copy ClaudeLog.bat to C:\Apps
+echo   Copying ClaudeLog.bat to %PUBLISH_ROOT%
+copy /Y "%SOURCE_DIR%ClaudeLog.bat" "%PUBLISH_ROOT%\ClaudeLog.bat" >nul
+if %ERRORLEVEL% NEQ 0 (
+    echo WARNING: Failed to copy ClaudeLog.bat
+) else (
+    echo   ClaudeLog.bat copied successfully.
+)
+echo.
+
 REM ============================================
 REM Step 4: Start web app
 REM ============================================
