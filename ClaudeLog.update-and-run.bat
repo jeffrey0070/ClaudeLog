@@ -42,6 +42,7 @@ echo   Stopping all ClaudeLog processes
 taskkill /F /IM ClaudeLog.Web.exe >nul 2>&1
 taskkill /F /IM ClaudeLog.Hook.Claude.exe >nul 2>&1
 taskkill /F /IM ClaudeLog.Hook.Codex.exe >nul 2>&1
+taskkill /F /IM ClaudeLog.Hook.Gemini.exe >nul 2>&1
 taskkill /F /IM ClaudeLog.MCP.exe >nul 2>&1
 
 REM Wait for file handles to release
@@ -128,6 +129,19 @@ dotnet publish ClaudeLog.Hook.Codex\ClaudeLog.Hook.Codex.csproj ^
     --verbosity quiet
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: Publish Codex Hook failed!
+    pause
+    exit /b 1
+)
+
+REM Gemini Hook
+echo   Publishing ClaudeLog.Hook.Gemini
+dotnet publish ClaudeLog.Hook.Gemini\ClaudeLog.Hook.Gemini.csproj ^
+    -c Release ^
+    -o "%PUBLISH_ROOT%\ClaudeLog.Hook.Gemini" ^
+    --nologo ^
+    --verbosity quiet
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: Publish Gemini Hook failed!
     pause
     exit /b 1
 )

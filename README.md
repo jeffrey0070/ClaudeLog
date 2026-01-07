@@ -7,7 +7,7 @@ Automatic conversation logger for Claude Code and Codex CLIs with web-based brow
 ClaudeLog captures every Q&A from your CLI conversations and stores them in SQL Server with a web UI for browsing, searching, and managing your conversation history.
 
 ## Features
-1. Log Claude Code and Codex conversations
+1. Log Claude Code, Codex, and Gemini CLI conversations
 2. Support for both Hook and MCP integration methods
 3. Web UI for browsing, searching, and managing conversations
 
@@ -120,8 +120,25 @@ startup_timeout_ms = 20000
 
    **Note:** MCP logging may double token consumption because the logging go through server. So try hook first.
 
+4. **Configure for Gemini CLI**
 
-4. **Access UI:** http://localhost:15088
+   Edit `%USERPROFILE%\.gemini\settings.json` and add a command hook for the `session-end` event.
+
+   ```json
+   {
+     "hooks": {
+       "session-end": [{
+         "type": "command",
+         "command": "C:/Apps/ClaudeLog.Hook.Gemini/ClaudeLog.Hook.Gemini.exe",
+         "timeout": 30
+       }]
+     }
+   }
+   ```
+
+   **Note on Payload:** The Gemini hook assumes a specific JSON payload structure from the CLI. If the hook fails to log conversations, you can inspect the actual payload by setting the `CLAUDELOG_GEMINI_DUMP_PAYLOAD=1` environment variable. This will save the payload to a file named `gemini-payload-dump.json` in your system's temporary directory.
+
+5. **Access UI:** http://localhost:15088
 
 
    **Database initialization is automatic!** The web app will:
@@ -138,6 +155,7 @@ startup_timeout_ms = 20000
 - **ClaudeLog.Web** - ASP.NET Core web app (Razor Pages + Minimal APIs)
 - **ClaudeLog.Hook.Claude** - Claude Code Stop hook (console app)
 - **ClaudeLog.Hook.Codex** - Codex hook with stdin/watcher modes (console app)
+- **ClaudeLog.Hook.Gemini** - Gemini CLI session-end hook (console app)
 - **ClaudeLog.MCP** - MCP server for Codex integration (STDIO transport)
 
 
@@ -175,6 +193,7 @@ startup_timeout_ms = 20000
 - `CLAUDELOG_WAIT_FOR_DEBUGGER` - Set to `1` to pause hook and wait for Visual Studio debugger attachment (Claude hook)
 - `CLAUDELOG_DEBUGGER_WAIT_SECONDS` - Seconds to wait for debugger (default: 60)
 - `CLAUDELOG_HOOK_LOGLEVEL` - Set to `verbose` for debug logging (Codex hook only)
+- `CLAUDELOG_GEMINI_DUMP_PAYLOAD` - Set to `1` to dump the raw JSON payload from the Gemini CLI hook to a file for inspection.
 
 ## Debugging
 
