@@ -122,21 +122,31 @@ startup_timeout_ms = 20000
 
 4. **Configure for Gemini CLI**
 
-   Edit `%USERPROFILE%\.gemini\settings.json` and add a command hook for the `session-end` event.
+   Edit `%USERPROFILE%\.gemini\settings.json` and enable hooks, then register the `AfterModel` hook (logs every turn).
 
    ```json
    {
+     "tools": {
+       "enableHooks": true,
+       "enableMessageBusIntegration": true
+     },
      "hooks": {
-       "session-end": [{
-         "type": "command",
-         "command": "C:/Apps/ClaudeLog.Hook.Gemini/ClaudeLog.Hook.Gemini.exe",
-         "timeout": 30
+       "AfterModel": [{
+         "matcher": "*",
+         "hooks": [{
+           "name": "claudelog-gemini",
+           "type": "command",
+           "command": "C:/Apps/ClaudeLog.Hook.Gemini/ClaudeLog.Hook.Gemini.exe",
+           "timeout": 30000
+         }]
        }]
      }
    }
    ```
 
-   **Note on Payload:** The Gemini hook assumes a specific JSON payload structure from the CLI. If the hook fails to log conversations, you can inspect the actual payload by setting the `CLAUDELOG_GEMINI_DUMP_PAYLOAD=1` environment variable. This will save the payload to a file named `gemini-payload-dump.json` in your system's temporary directory.
+   **Optional:** Use `SessionEnd` if you only want one log entry per session.
+
+   **Note on Payload:** If the hook fails to log conversations, you can inspect the actual payload by setting the `CLAUDELOG_GEMINI_DUMP_PAYLOAD=1` environment variable. This will save the payload to a file named `gemini-payload-dump.json` in your system's temporary directory.
 
 5. **Access UI:** http://localhost:15088
 
@@ -155,7 +165,7 @@ startup_timeout_ms = 20000
 - **ClaudeLog.Web** - ASP.NET Core web app (Razor Pages + Minimal APIs)
 - **ClaudeLog.Hook.Claude** - Claude Code Stop hook (console app)
 - **ClaudeLog.Hook.Codex** - Codex hook with stdin/watcher modes (console app)
-- **ClaudeLog.Hook.Gemini** - Gemini CLI session-end hook (console app)
+- **ClaudeLog.Hook.Gemini** - Gemini CLI `AfterModel` hook (console app)
 - **ClaudeLog.MCP** - MCP server for Codex integration (STDIO transport)
 
 
@@ -250,3 +260,20 @@ The hook normally exits in milliseconds, but you can make it wait for debugger a
 **Warning:** Claude Code's hook timeout is 30 seconds by default. If you need more time:
 - Set `CLAUDELOG_DEBUGGER_WAIT_SECONDS=25` to stay under timeout
 - Or increase timeout in `.claude\settings.json`: `"timeout": 60`
+
+## Technical Notes
+
+- Gemini CLI hooks are disabled by default. Enable with:
+  - `tools.enableHooks=true`
+  - `tools.enableMessageBusIntegration=true`
+  - hooks configuration in `%USERPROFILE%\.gemini\settings.json`
+- Hook timeouts are **milliseconds**. A value like `30` means 30ms and will kill hooks. Use `30000` for 30 seconds.
+- On Windows, Gemini runs hooks under **PowerShell**, not `cmd`. Use PowerShell syntax in hook commands (no `&&`, use `$env:VAR=...`).
+- The recommended Gemini event is `AfterModel` to log every turn; `SessionEnd` only fires on exit/clear.
+- `AfterModel` is **streaming**. The hook is invoked for multiple chunks. Log only when the chunk has `finishReason`, and aggregate chunk text until final to avoid duplicates.
+- Transcript files can lag behind streaming; reading `transcript_path` too early can pair a prompt with the previous response. Prefer the `llm_request` + aggregated `llm_response` for `AfterModel`.
+- If entries still do not appear, confirm the published hook matches the latest code:
+  - `dotnet publish ClaudeLog.Hook.Gemini\ClaudeLog.Hook.Gemini.csproj -c Release -o C:\Apps\ClaudeLog.Hook.Gemini`
+- Debugging:
+  - Set `CLAUDELOG_GEMINI_DUMP_PAYLOAD=1` to capture the raw payload in `%TEMP%\gemini-payload-dump.json`.
+  - Use `/hooks panel` in Gemini CLI to verify the hook is registered and enabled.

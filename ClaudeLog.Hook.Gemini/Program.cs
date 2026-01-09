@@ -13,7 +13,7 @@ namespace ClaudeLog.Hook.Gemini;
 
 /// <summary>
 /// Gemini CLI hook that captures conversation data and logs it to the ClaudeLog database.
-/// This hook should be triggered by a Gemini CLI lifecycle event, like 'session-end'.
+/// This hook should be triggered by a Gemini CLI lifecycle event, like 'AfterModel'.
 /// </summary>
 class Program
 {
@@ -281,20 +281,20 @@ class Program
             "chatId"
         };
 
-    var direct = FindStringByKeys(root, keys);
-    if (!string.IsNullOrWhiteSpace(direct))
-    {
-        return direct;
-    }
+        var direct = FindStringByKeys(root, keys);
+        if (!string.IsNullOrWhiteSpace(direct))
+        {
+            return direct;
+        }
 
-    // Common nested path: session.id
-    if (root.ValueKind == JsonValueKind.Object &&
-        root.TryGetProperty("session", out var sessionObj) &&
-        sessionObj.ValueKind == JsonValueKind.Object)
-    {
-        var nested = FindStringByKeys(sessionObj, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "id", "session_id", "sessionId" });
-        if (!string.IsNullOrWhiteSpace(nested)) return nested;
-    }
+        // Common nested path: session.id
+        if (root.ValueKind == JsonValueKind.Object &&
+            root.TryGetProperty("session", out var sessionObj) &&
+            sessionObj.ValueKind == JsonValueKind.Object)
+        {
+            var nested = FindStringByKeys(sessionObj, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "id", "session_id", "sessionId" });
+            if (!string.IsNullOrWhiteSpace(nested)) return nested;
+        }
 
         return null;
     }
@@ -307,36 +307,6 @@ class Program
     static string? ExtractHookEventName(JsonElement root)
     {
         return ExtractStringProperty(root, new[] { "hook_event_name", "hookEventName" });
-    }
-
-    static bool ShouldSkipAfterModel(JsonElement root, HookInput? directInput)
-    {
-        var eventName = directInput?.HookEventName ?? ExtractHookEventName(root);
-        if (!string.Equals(eventName, "AfterModel", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (!root.TryGetProperty("llm_response", out var response))
-        {
-            return true;
-        }
-
-        if (response.TryGetProperty("candidates", out var candidates) && candidates.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var candidate in candidates.EnumerateArray())
-            {
-                if (candidate.TryGetProperty("finishReason", out var finishEl) &&
-                    finishEl.ValueKind == JsonValueKind.String &&
-                    !string.IsNullOrWhiteSpace(finishEl.GetString()))
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        return false;
     }
 
     static async Task<(string? Question, string? Response, long? TranscriptSize)> ResolveQuestionResponseAsync(HookInput input)
@@ -1017,7 +987,7 @@ static class StreamStateStore
 
     public static (string Question, string Response)? AppendChunk(string sessionId, string? question, string? chunkText, bool isFinal)
     {
-        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(chunkText))
+        if (string.IsNullOrWhiteSpace(sessionId))
         {
             return null;
         }
@@ -1039,14 +1009,21 @@ static class StreamStateStore
                 state.Question = question;
             }
 
-            state.Response += chunkText;
+            if (!string.IsNullOrWhiteSpace(chunkText))
+            {
+                state.Response += chunkText;
+            }
             state.UpdatedAt = DateTime.Now;
             _map[sessionId] = state;
 
             if (isFinal)
             {
                 _map.Remove(sessionId);
-                return (state.Question, state.Response.Trim());
+                if (!string.IsNullOrWhiteSpace(state.Question) && !string.IsNullOrWhiteSpace(state.Response))
+                {
+                    return (state.Question, state.Response.Trim());
+                }
+                return null;
             }
         }
 
