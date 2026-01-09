@@ -6,6 +6,15 @@ REM Stops any running instance and starts ClaudeLog.Web
 REM Can be run from anywhere
 REM ============================================
 
+REM Require admin for machine-level env vars and C:\Apps
+net session >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: This script must be run as Administrator.
+    echo Right-click this file and choose "Run as administrator".
+    pause
+    exit /b 1
+)
+
 echo.
 echo ============================================
 echo ClaudeLog - Quick Start

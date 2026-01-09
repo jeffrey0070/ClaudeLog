@@ -13,6 +13,15 @@ echo       "Run as administrator" command prompt.
 echo example: Server=localhost;Database=ClaudeLog;User Id=myUsername;Password=myPassword;TrustServerCertificate=true;
 echo example: Server=localhost;Database=ClaudeLog;Integrated Security=true;TrustServerCertificate=true;
 echo.
+
+REM Require admin for machine-level env vars
+net session >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: This script must be run as Administrator.
+    echo Right-click this file and choose "Run as administrator".
+    pause
+    exit /b 1
+)
 echo Current CLAUDELOG_CONNECTION_STRING (process view):
 if defined CLAUDELOG_CONNECTION_STRING (
     echo   %CLAUDELOG_CONNECTION_STRING%

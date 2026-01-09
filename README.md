@@ -24,6 +24,7 @@ ClaudeLog captures every Q&A from your CLI conversations and stores them in SQL 
    ClaudeLog.update-and-run.bat
    ```
    This builds all projects, publishes to `C:\Apps\ClaudeLog.*`, and starts the web app.
+   **Admin required:** these scripts set machine-level environment variables and publish under `C:\Apps`. Run the batch files from an elevated terminal or right-click and choose **Run as administrator** so hooks can read the same non-user settings across accounts.
 
    **Database initialization is automatic!** The web app will:
    - Create the database if it doesn't exist
@@ -56,6 +57,7 @@ ClaudeLog captures every Q&A from your CLI conversations and stores them in SQL 
    ```
 
    **Note:** Hooks have known issues in VS Code extension Native UI mode. Use MCP if experiencing problems.
+   **Admin note:** ensure `CLAUDELOG_CONNECTION_STRING` is set at the machine level so hooks launched under other users can access the database.
 
    **Option B: MCP Server**
 
@@ -87,6 +89,7 @@ ClaudeLog captures every Q&A from your CLI conversations and stores them in SQL 
    ]
    ```
    Codex passes the JSON payload as the final argument; the hook parses the payload, ensures a stable session ID from `thread-id`, and writes the Q&A immediately without touching transcripts.
+   **Admin note:** ensure `CLAUDELOG_CONNECTION_STRING` is set at the machine level so hooks launched under other users can access the database.
 
 **Watcher mode** (fallback for older Codex builds):
 ```bash
@@ -147,6 +150,7 @@ startup_timeout_ms = 20000
    **Optional:** Use `SessionEnd` if you only want one log entry per session.
 
    **Note on Payload:** If the hook fails to log conversations, you can inspect the actual payload by setting the `CLAUDELOG_GEMINI_DUMP_PAYLOAD=1` environment variable. This will save the payload to a file named `gemini-payload-dump.json` in your system's temporary directory.
+   **Admin note:** ensure `CLAUDELOG_CONNECTION_STRING` is set at the machine level so hooks launched under other users can access the database.
 
 5. **Access UI:** http://localhost:15088
 
@@ -197,6 +201,11 @@ startup_timeout_ms = 20000
 - `CLAUDELOG_CONNECTION_STRING` - Database connection string (required)
   - All components (Web, Hooks, MCP, services) read this value.
   - Use `set-connection-string.bat` (run as Administrator) to configure it at the machine level.
+
+## Permissions
+
+- Run `ClaudeLog.update-and-run.bat`, `ClaudeLog.bat`, and `set-connection-string.bat` as **Administrator** to set machine-level environment variables and publish to `C:\Apps`.
+- Hooks are executed by other user contexts; machine-level settings keep them consistent across accounts.
 
 **Hook/MCP environment variables:**
 - `CLAUDELOG_DEBUG` - Set to `1` to enable debug logging to `%USERPROFILE%\.claudelog\hook-claude-debug.log` (Claude hook)
