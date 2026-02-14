@@ -19,6 +19,7 @@ if %ERRORLEVEL% NEQ 0 (
 set "SOURCE_DIR=%~dp0"
 set "PUBLISH_ROOT=C:\Apps"
 set "WEB_PORT=15088"
+set "SERVICE_NAME=ClaudeLog.Web.exe"
 
 echo.
 echo ============================================
@@ -31,6 +32,11 @@ REM Step 1: Stop running instances
 REM ============================================
 echo Step 1: Stopping running instances
 echo.
+
+REM Stop Windows service first (production hosting mode)
+echo   Stopping Windows service %SERVICE_NAME%
+sc stop "%SERVICE_NAME%" >nul 2>&1
+timeout /t 2 /nobreak >nul
 
 REM Stop web app by port
 set "PID="
@@ -189,13 +195,16 @@ echo Step 4: Starting ClaudeLog.Web
 echo ============================================
 echo.
 echo Access at: http://localhost:%WEB_PORT%
-echo Press Ctrl+C to stop the application
 echo.
 
-cd "%PUBLISH_ROOT%\ClaudeLog.Web"
-set ASPNETCORE_ENVIRONMENT=Production
-set ASPNETCORE_URLS=http://localhost:%WEB_PORT%
-ClaudeLog.Web.exe
+echo   Starting Windows service %SERVICE_NAME%
+sc start "%SERVICE_NAME%" >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo WARNING: Failed to start service %SERVICE_NAME%.
+    echo Verify the service exists and points to %PUBLISH_ROOT%\ClaudeLog.Web\ClaudeLog.Web.exe
+) else (
+    echo   Service started.
+)
 
 endlocal
 echo.

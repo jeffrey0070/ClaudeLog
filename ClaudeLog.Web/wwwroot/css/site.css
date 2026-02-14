@@ -147,7 +147,7 @@ html, body {
   padding: 0.5rem !important;
   word-wrap: break-word;
   overflow-wrap: break-word;
-  white-space: pre-line;
+  white-space: normal;
 }
 
 /* Reset all markdown elements - no top margin/padding, small bottom margin */
@@ -169,6 +169,13 @@ html, body {
   font-size: 1em !important;
   font-weight: 600 !important;
   line-height: 1.5 !important;
+}
+
+/* Keep markdown list markers inside the content box */
+#question ul, #question ol,
+#response ul, #response ol {
+  padding-left: 1.5rem !important;
+  margin-left: 0 !important;
 }
 
 /* Resize handle */

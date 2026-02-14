@@ -1,5 +1,6 @@
 using ClaudeLog.Data.Services;
 using ClaudeLog.Web.Api.Dtos;
+using ClaudeLog.Web.Services;
 using LogLevel = ClaudeLog.Data.Models.LogLevel;
 
 namespace ClaudeLog.Web.Api;
@@ -84,6 +85,7 @@ public static class EntriesEndpoints
     private static async Task<IResult> GetEntryById(
         long id,
         ConversationService conversationService,
+        MarkdownRenderer markdownRenderer,
         DiagnosticsService diagnosticsService)
     {
         try
@@ -95,7 +97,9 @@ public static class EntriesEndpoints
                     entry.Id,
                     entry.Title,
                     entry.Question,
+                    markdownRenderer.ToHtml(entry.Question),
                     entry.Response,
+                    markdownRenderer.ToHtml(entry.Response),
                     entry.CreatedAt,
                     entry.SessionId,
                     entry.Tool,

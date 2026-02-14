@@ -192,7 +192,9 @@ function renderEntryDetail(entry) {
     const detailView = document.getElementById('detailView');
     const timestamp = new Date(entry.createdAt).toLocaleString();
     const question = (entry.question || '').trim();
+    const questionHtml = (entry.questionHtml || '').trim();
     const response = (entry.response || '').trim();
+    const responseHtml = (entry.responseHtml || '').trim();
     const title = (entry.title || '').trim();
 
     const favoriteClass = entry.isFavorite ? 'btn-warning' : 'btn-outline-warning';
@@ -250,7 +252,7 @@ function renderEntryDetail(entry) {
                     </div>
                 </div>
                 <div id="question" class="p-3 bg-light border rounded" data-raw="${escapeHtml(question)}" data-entry-id="${entry.id}">
-                    ${escapeHtml(question)}
+                    ${questionHtml || escapeHtml(question)}
                 </div>
             </div>
 
@@ -276,7 +278,7 @@ function renderEntryDetail(entry) {
                     </div>
                 </div>
                 <div id="response" class="p-3 bg-light border rounded markdown-content" data-raw="${escapeHtml(response)}" data-entry-id="${entry.id}">
-                    ${renderMarkdown(response)}
+                    ${responseHtml || renderMarkdown(response)}
                 </div>
             </div>
         </div>
@@ -454,20 +456,7 @@ async function saveEditedQuestion() {
         });
 
         if (response.ok) {
-            // Replace textarea with div
-            const div = document.createElement('div');
-            div.id = 'question';
-            div.className = 'p-3 bg-light border rounded';
-            div.dataset.raw = newQuestion;
-            div.dataset.entryId = entryId;
-            div.textContent = newQuestion;
-
-            textarea.replaceWith(div);
-
-            // Toggle button visibility
-            document.getElementById('editQuestionBtn').style.display = 'inline-block';
-            document.getElementById('saveQuestionBtn').style.display = 'none';
-            document.getElementById('cancelQuestionBtn').style.display = 'none';
+            await selectEntry(entryId);
 
             showToast('Question updated!');
         } else {
@@ -487,23 +476,9 @@ function cancelEditQuestion() {
     const textarea = document.getElementById('questionTextarea');
     if (!textarea) return;
 
-    const originalValue = textarea.dataset.originalValue;
     const entryId = textarea.dataset.entryId;
 
-    // Replace textarea with div
-    const div = document.createElement('div');
-    div.id = 'question';
-    div.className = 'p-3 bg-light border rounded';
-    div.dataset.raw = originalValue;
-    div.dataset.entryId = entryId;
-    div.textContent = originalValue;
-
-    textarea.replaceWith(div);
-
-    // Toggle button visibility
-    document.getElementById('editQuestionBtn').style.display = 'inline-block';
-    document.getElementById('saveQuestionBtn').style.display = 'none';
-    document.getElementById('cancelQuestionBtn').style.display = 'none';
+    selectEntry(entryId);
 }
 
 /**
@@ -554,20 +529,7 @@ async function saveEditedResponse() {
         });
 
         if (response.ok) {
-            // Replace textarea with div
-            const div = document.createElement('div');
-            div.id = 'response';
-            div.className = 'p-3 bg-light border rounded markdown-content';
-            div.dataset.raw = newResponse;
-            div.dataset.entryId = entryId;
-            div.innerHTML = renderMarkdown(newResponse);
-
-            textarea.replaceWith(div);
-
-            // Toggle button visibility
-            document.getElementById('editResponseBtn').style.display = 'inline-block';
-            document.getElementById('saveResponseBtn').style.display = 'none';
-            document.getElementById('cancelResponseBtn').style.display = 'none';
+            await selectEntry(entryId);
 
             showToast('Response updated!');
         } else {
@@ -587,23 +549,9 @@ function cancelEditResponse() {
     const textarea = document.getElementById('responseTextarea');
     if (!textarea) return;
 
-    const originalValue = textarea.dataset.originalValue;
     const entryId = textarea.dataset.entryId;
 
-    // Replace textarea with div
-    const div = document.createElement('div');
-    div.id = 'response';
-    div.className = 'p-3 bg-light border rounded markdown-content';
-    div.dataset.raw = originalValue;
-    div.dataset.entryId = entryId;
-    div.innerHTML = renderMarkdown(originalValue);
-
-    textarea.replaceWith(div);
-
-    // Toggle button visibility
-    document.getElementById('editResponseBtn').style.display = 'inline-block';
-    document.getElementById('saveResponseBtn').style.display = 'none';
-    document.getElementById('cancelResponseBtn').style.display = 'none';
+    selectEntry(entryId);
 }
 
 // Copy to clipboard
