@@ -12,6 +12,7 @@ let showFavoritesOnly = false;
 let isAddEntryPanelOpen = false;
 let currentSessionForNewEntry = null;
 let sessionExpandedState = {};
+let currentDetailEntry = null;
 
 /**
  * Initializes expansion defaults for visible sessions.
@@ -253,6 +254,8 @@ async function selectEntry(id) {
 
 // Render entry detail with markdown
 function renderEntryDetail(entry) {
+    currentDetailEntry = entry;
+
     const detailView = document.getElementById('detailView');
     const timestamp = new Date(entry.createdAt).toLocaleString();
     const question = (entry.question || '').trim();
@@ -260,6 +263,8 @@ function renderEntryDetail(entry) {
     const response = (entry.response || '').trim();
     const responseHtml = (entry.responseHtml || '').trim();
     const title = (entry.title || '').trim();
+    const renderedQuestionHtml = hasVisibleHtmlContent(questionHtml) ? questionHtml : renderMarkdown(question);
+    const renderedResponseHtml = hasVisibleHtmlContent(responseHtml) ? responseHtml : renderMarkdown(response);
 
     const favoriteClass = entry.isFavorite ? 'btn-warning' : 'btn-outline-warning';
     const deleteClass = entry.isDeleted ? 'btn-danger' : 'btn-outline-danger';
@@ -270,7 +275,7 @@ function renderEntryDetail(entry) {
             <div class="mb-3 d-flex justify-content-between align-items-start">
                 <div style="flex: 1;">
                     <div class="d-flex align-items-center gap-2">
-                        <h4 id="entryTitle" class="mb-0" data-entry-id="${entry.id}" data-original-title="${escapeHtml(title)}">
+                        <h4 id="entryTitle" class="mb-0" data-entry-id="${entry.id}">
                             ${escapeHtml(title)}
                         </h4>
                         <button id="editTitleBtn" class="btn btn-sm btn-link p-0 text-muted" onclick="startEditTitle()" title="Edit title" style="font-size: 1rem;">
@@ -315,8 +320,8 @@ function renderEntryDetail(entry) {
                         </button>
                     </div>
                 </div>
-                <div id="question" class="p-3 bg-light border rounded" data-raw="${escapeHtml(question)}" data-entry-id="${entry.id}">
-                    ${questionHtml || escapeHtml(question)}
+                <div id="question" class="p-3 bg-light border rounded" data-entry-id="${entry.id}">
+                    ${renderedQuestionHtml}
                 </div>
             </div>
 
@@ -341,12 +346,31 @@ function renderEntryDetail(entry) {
                         </button>
                     </div>
                 </div>
-                <div id="response" class="p-3 bg-light border rounded markdown-content" data-raw="${escapeHtml(response)}" data-entry-id="${entry.id}">
-                    ${responseHtml || renderMarkdown(response)}
+                <div id="response" class="p-3 bg-light border rounded markdown-content" data-entry-id="${entry.id}">
+                    ${renderedResponseHtml}
                 </div>
             </div>
         </div>
     `;
+}
+
+/**
+ * Returns true when sanitized HTML still has visible content.
+ * This avoids blank panels when sanitization strips most markup.
+ * @param {string} html - Rendered HTML string
+ * @returns {boolean}
+ */
+function hasVisibleHtmlContent(html) {
+    if (!html) return false;
+
+    const container = document.createElement('div');
+    container.innerHTML = html;
+
+    if ((container.textContent || '').trim().length > 0) {
+        return true;
+    }
+
+    return container.querySelector('img,svg,video,iframe,canvas,table,hr,pre,code') !== null;
 }
 
 // Render markdown (client-side fallback)
@@ -363,7 +387,8 @@ function renderMarkdown(text) {
  */
 function startEditTitle() {
     const titleElement = document.getElementById('entryTitle');
-    const currentTitle = titleElement.textContent.trim();
+    const currentTitle = currentDetailEntry?.title ?? titleElement.textContent.trim();
+    const entryId = String(currentDetailEntry?.id ?? titleElement.dataset.entryId);
 
     // Replace h4 with input
     const input = document.createElement('input');
@@ -374,8 +399,7 @@ function startEditTitle() {
     input.style.width = '100%';
 
     // Store entry ID on the input for later use
-    input.dataset.entryId = titleElement.dataset.entryId;
-    input.dataset.originalTitle = titleElement.dataset.originalTitle;
+    input.dataset.entryId = entryId;
 
     titleElement.replaceWith(input);
     input.focus();
@@ -419,10 +443,12 @@ async function saveEditedTitle() {
             h4.id = 'entryTitle';
             h4.className = 'mb-0';
             h4.dataset.entryId = entryId;
-            h4.dataset.originalTitle = newTitle;
             h4.textContent = newTitle;
 
             input.replaceWith(h4);
+            if (currentDetailEntry) {
+                currentDetailEntry.title = newTitle;
+            }
 
             // Toggle button visibility
             document.getElementById('editTitleBtn').style.display = 'inline-block';
@@ -453,23 +479,8 @@ function cancelEditTitle() {
     const input = document.getElementById('entryTitleInput');
     if (!input) return;
 
-    const originalTitle = input.dataset.originalTitle;
-    const entryId = input.dataset.entryId;
-
-    // Replace input with h4
-    const h4 = document.createElement('h4');
-    h4.id = 'entryTitle';
-    h4.className = 'mb-0';
-    h4.dataset.entryId = entryId;
-    h4.dataset.originalTitle = originalTitle;
-    h4.textContent = originalTitle;
-
-    input.replaceWith(h4);
-
-    // Toggle button visibility
-    document.getElementById('editTitleBtn').style.display = 'inline-block';
-    document.getElementById('saveTitleBtn').style.display = 'none';
-    document.getElementById('cancelTitleBtn').style.display = 'none';
+    const entryId = Number(input.dataset.entryId);
+    selectEntry(entryId);
 }
 
 /**
@@ -477,7 +488,7 @@ function cancelEditTitle() {
  */
 function startEditQuestion() {
     const questionElement = document.getElementById('question');
-    const currentQuestion = questionElement.dataset.raw || questionElement.textContent.trim();
+    const currentQuestion = currentDetailEntry?.question ?? questionElement.textContent.trim();
 
     // Replace div with textarea
     const textarea = document.createElement('textarea');
@@ -550,7 +561,7 @@ function cancelEditQuestion() {
  */
 function startEditResponse() {
     const responseElement = document.getElementById('response');
-    const currentResponse = responseElement.dataset.raw || responseElement.textContent.trim();
+    const currentResponse = currentDetailEntry?.response ?? responseElement.textContent.trim();
 
     // Replace div with textarea
     const textarea = document.createElement('textarea');
@@ -621,7 +632,11 @@ function cancelEditResponse() {
 // Copy to clipboard
 async function copyToClipboard(elementId) {
     const element = document.getElementById(elementId);
-    const text = element.dataset.raw || element.textContent;
+    const text = elementId === 'question'
+        ? (currentDetailEntry?.question ?? element.textContent)
+        : elementId === 'response'
+            ? (currentDetailEntry?.response ?? element.textContent)
+            : element.textContent;
 
     try {
         await navigator.clipboard.writeText(text);
@@ -633,9 +648,8 @@ async function copyToClipboard(elementId) {
 
 // Copy both question and response
 async function copyBoth() {
-    const question = document.getElementById('question').textContent;
-    const response = document.getElementById('response').dataset.raw ||
-                     document.getElementById('response').textContent;
+    const question = currentDetailEntry?.question ?? document.getElementById('question').textContent;
+    const response = currentDetailEntry?.response ?? document.getElementById('response').textContent;
     const combined = `Q: ${question}\n\nA: ${response}`;
 
     try {
