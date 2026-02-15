@@ -11,6 +11,63 @@ let includeDeleted = false;
 let showFavoritesOnly = false;
 let isAddEntryPanelOpen = false;
 let currentSessionForNewEntry = null;
+let sessionExpandedState = {};
+
+/**
+ * Initializes expansion defaults for visible sessions.
+ * New sessions start expanded only for the first two so long lists stay scannable.
+ * @param {Array} sortedSessions - Array of [sessionId, sessionData] tuples
+ */
+function initializeSessionExpansionState(sortedSessions) {
+    const visibleSessionIds = new Set();
+
+    sortedSessions.forEach(([sessionId]) => {
+        visibleSessionIds.add(sessionId);
+        if (sessionExpandedState[sessionId] === undefined) {
+            sessionExpandedState[sessionId] = false;
+        }
+    });
+
+    Object.keys(sessionExpandedState).forEach(sessionId => {
+        if (!visibleSessionIds.has(sessionId)) {
+            delete sessionExpandedState[sessionId];
+        }
+    });
+}
+
+/**
+ * Returns whether a session is expanded.
+ * @param {string} sessionId - Session ID
+ * @returns {boolean}
+ */
+function isSessionExpanded(sessionId) {
+    return sessionExpandedState[sessionId] !== false;
+}
+
+/**
+ * Toggles visibility for one session block without forcing a full list rerender.
+ * @param {string} sessionId - Session ID
+ */
+function toggleSessionExpanded(sessionId) {
+    const nextExpanded = !isSessionExpanded(sessionId);
+    sessionExpandedState[sessionId] = nextExpanded;
+
+    const entriesContainer = document.getElementById(`session-entries-${sessionId}`);
+    const header = document.getElementById(`session-header-${sessionId}`);
+    const indicator = document.getElementById(`session-indicator-${sessionId}`);
+
+    if (entriesContainer) {
+        entriesContainer.classList.toggle('collapsed', !nextExpanded);
+    }
+
+    if (header) {
+        header.setAttribute('aria-expanded', String(nextExpanded));
+    }
+
+    if (indicator) {
+        indicator.textContent = nextExpanded ? '▾' : '▸';
+    }
+}
 
 /**
  * Debounce function to limit API calls during search typing
@@ -102,18 +159,25 @@ function renderEntriesList(entries) {
     const sortedSections = Object.entries(sessions).sort((a, b) =>
         new Date(b[1].createdAt) - new Date(a[1].createdAt)
     );
+    initializeSessionExpansionState(sortedSections);
 
     let html = '';
     sortedSections.forEach(([sessionId, session]) => {
         const sectionDate = new Date(session.createdAt).toLocaleDateString();
         const sectionTime = new Date(session.createdAt).toLocaleTimeString();
         const sectionDeleted = session.entries[0]?.sessionIsDeleted || false;
+        const isExpanded = isSessionExpanded(sessionId);
         
         const sectionDeleteTitle = sectionDeleted ? 'Restore section' : 'Delete section';
         const sectionClass = sectionDeleted ? 'deleted-entry' : '';
         html += `
             <div class="section-group mb-3">
-                <div class="section-header p-2 bg-light fw-bold text-muted small d-flex align-items-center ${sectionClass}">
+                <div id="session-header-${sessionId}"
+                     class="section-header p-2 bg-light fw-bold text-muted small d-flex align-items-center ${sectionClass}"
+                     onclick="toggleSessionExpanded('${sessionId}')"
+                     role="button"
+                     aria-expanded="${isExpanded}">
+                    <span id="session-indicator-${sessionId}" class="section-toggle-indicator me-2">${isExpanded ? '▾' : '▸'}</span>
                     <span class="flex-grow-1">${sectionDate} ${sectionTime} - ${session.tool}</span>
                     <button class="btn btn-sm btn-link p-0 me-2"
                             onclick="event.stopPropagation(); showAddEntryPanel('${sessionId}')"
@@ -126,7 +190,7 @@ function renderEntriesList(entries) {
                         ${sectionDeleted ? '↩' : '🗑'}
                     </button>
                 </div>
-                <div class="entries-in-section">
+                <div id="session-entries-${sessionId}" class="entries-in-section ${isExpanded ? '' : 'collapsed'}">
         `;
 
         session.entries.forEach(entry => {

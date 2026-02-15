@@ -71,6 +71,17 @@ html, body {
   z-index: 10;
   background-color: #d1e7dd !important;
   color: #0f5132 !important;
+  cursor: pointer;
+}
+
+.section-toggle-indicator {
+  width: 1rem;
+  display: inline-block;
+  text-align: center;
+}
+
+.entries-in-section.collapsed {
+  display: none;
 }
 
 /* Editable title */
