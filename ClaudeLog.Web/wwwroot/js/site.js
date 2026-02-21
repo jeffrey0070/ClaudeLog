@@ -13,6 +13,7 @@ let isAddEntryPanelOpen = false;
 let currentSessionForNewEntry = null;
 let sessionExpandedState = {};
 let currentDetailEntry = null;
+let currentSessionId = null;
 
 /**
  * Initializes expansion defaults for visible sessions.
@@ -50,6 +51,8 @@ function isSessionExpanded(sessionId) {
  * @param {string} sessionId - Session ID
  */
 function toggleSessionExpanded(sessionId) {
+    setCurrentSession(sessionId);
+
     const nextExpanded = !isSessionExpanded(sessionId);
     sessionExpandedState[sessionId] = nextExpanded;
 
@@ -67,6 +70,25 @@ function toggleSessionExpanded(sessionId) {
 
     if (indicator) {
         indicator.textContent = nextExpanded ? '▾' : '▸';
+    }
+}
+
+/**
+ * Sets the current session and updates header highlighting in place.
+ * @param {string} sessionId - Session ID
+ */
+function setCurrentSession(sessionId) {
+    currentSessionId = sessionId;
+
+    document.querySelectorAll('.section-header').forEach(header => {
+        header.classList.remove('current-session');
+        header.setAttribute('aria-current', 'false');
+    });
+
+    const currentHeader = document.getElementById(`session-header-${sessionId}`);
+    if (currentHeader) {
+        currentHeader.classList.add('current-session');
+        currentHeader.setAttribute('aria-current', 'true');
     }
 }
 
@@ -150,34 +172,46 @@ function renderEntriesList(entries) {
             sessions[entry.sessionId] = {
                 tool: entry.tool,
                 createdAt: entry.sessionCreatedAt,
+                latestEntryCreatedAt: entry.createdAt,
                 entries: []
             };
+        }
+        const existingLatest = new Date(sessions[entry.sessionId].latestEntryCreatedAt);
+        const entryCreatedAt = new Date(entry.createdAt);
+        if (!Number.isNaN(entryCreatedAt.getTime()) &&
+            (Number.isNaN(existingLatest.getTime()) || entryCreatedAt > existingLatest)) {
+            sessions[entry.sessionId].latestEntryCreatedAt = entry.createdAt;
         }
         sessions[entry.sessionId].entries.push(entry);
     });
 
-    // Sort sessions by date desc (newest first)
+    // Sort sessions by latest entry date desc (newest activity first)
     const sortedSections = Object.entries(sessions).sort((a, b) =>
-        new Date(b[1].createdAt) - new Date(a[1].createdAt)
+        new Date(b[1].latestEntryCreatedAt || b[1].createdAt) -
+        new Date(a[1].latestEntryCreatedAt || a[1].createdAt)
     );
     initializeSessionExpansionState(sortedSections);
 
     let html = '';
     sortedSections.forEach(([sessionId, session]) => {
-        const sectionDate = new Date(session.createdAt).toLocaleDateString();
-        const sectionTime = new Date(session.createdAt).toLocaleTimeString();
+        const sectionTimestamp = session.latestEntryCreatedAt || session.createdAt;
+        const sectionDate = new Date(sectionTimestamp).toLocaleDateString();
+        const sectionTime = new Date(sectionTimestamp).toLocaleTimeString();
         const sectionDeleted = session.entries[0]?.sessionIsDeleted || false;
         const isExpanded = isSessionExpanded(sessionId);
+        const isCurrentSession = sessionId === currentSessionId;
         
         const sectionDeleteTitle = sectionDeleted ? 'Restore section' : 'Delete section';
         const sectionClass = sectionDeleted ? 'deleted-entry' : '';
+        const currentSessionClass = isCurrentSession ? 'current-session' : '';
         html += `
             <div class="section-group mb-3">
                 <div id="session-header-${sessionId}"
-                     class="section-header p-2 bg-light fw-bold text-muted small d-flex align-items-center ${sectionClass}"
+                     class="section-header p-2 bg-light fw-bold text-muted small d-flex align-items-center ${sectionClass} ${currentSessionClass}"
                      onclick="toggleSessionExpanded('${sessionId}')"
                      role="button"
-                     aria-expanded="${isExpanded}">
+                     aria-expanded="${isExpanded}"
+                     aria-current="${isCurrentSession}">
                     <span id="session-indicator-${sessionId}" class="section-toggle-indicator me-2">${isExpanded ? '▾' : '▸'}</span>
                     <span class="flex-grow-1">${sectionDate} ${sectionTime} - ${session.tool}</span>
                     <button class="btn btn-sm btn-link p-0 me-2"

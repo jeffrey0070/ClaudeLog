@@ -74,6 +74,12 @@ html, body {
   cursor: pointer;
 }
 
+.section-header.current-session {
+  background-color: #e7f3ff !important;
+  color: #084298 !important;
+  border-left: 3px solid #0d6efd;
+}
+
 .section-toggle-indicator {
   width: 1rem;
   display: inline-block;
