@@ -122,6 +122,35 @@ html, body {
   padding: 0;
 }
 
+/* App brand */
+.app-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.brand-claude {
+  font-family: 'Fira Code', monospace;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #c96a2a;
+}
+
+.brand-log {
+  font-family: 'Fira Code', monospace;
+  font-size: 1.15rem;
+  font-weight: 400;
+  color: #6c757d;
+}
+
+.brand-subtitle {
+  font-size: 0.7rem;
+  color: #adb5bd;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
 /* Search bar */
 .search-bar {
   background-color: #fff;

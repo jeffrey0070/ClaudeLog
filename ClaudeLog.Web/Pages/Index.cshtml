@@ -5,12 +5,17 @@
 }
 
 <div class="container-fluid p-0" style="height: 100vh; display: flex; flex-direction: column;">
-    <!-- Search Bar -->
-    <div class="search-bar p-2 border-bottom">
+    <!-- Top Bar -->
+    <div class="search-bar px-3 py-2 border-bottom">
         <div class="d-flex gap-2 align-items-center">
             <button id="toggleLeftPanel" class="btn btn-outline-secondary btn-sm" title="Toggle sidebar (Ctrl+B)">☰</button>
+            <a href="/" class="app-brand text-decoration-none me-2">
+                <span class="brand-claude">Claude</span><span class="brand-log">Log</span>
+                <span class="brand-subtitle">AI Conversation Browser</span>
+            </a>
             <input type="text" id="searchInput" class="form-control" placeholder="Search conversations..." style="flex: 1;" />
             <button id="clearSearch" class="btn btn-secondary btn-sm">Clear</button>
+            <a href="/Logs" class="btn btn-outline-secondary btn-sm">Logs</a>
         </div>
     </div>
 
