@@ -14,6 +14,19 @@ let currentSessionForNewEntry = null;
 let sessionExpandedState = {};
 let currentDetailEntry = null;
 let currentSessionId = null;
+let cachedSessions = [];
+
+/**
+ * Formats a session label consistently: "date time — tool  (count)"
+ * Uses cachedSessions for count when available.
+ */
+function formatSessionLabel(sessionId, sessionCreatedAt, tool) {
+    const date = new Date(sessionCreatedAt).toLocaleDateString();
+    const time = new Date(sessionCreatedAt).toLocaleTimeString();
+    const cached = cachedSessions.find(s => s.sessionId === sessionId);
+    const countPart = cached ? `  (${cached.count})` : '';
+    return `${date} ${time} — ${escapeHtml(tool)}${countPart}`;
+}
 
 /**
  * Initializes expansion defaults for visible sessions.
@@ -186,17 +199,17 @@ function renderEntriesList(entries) {
     });
 
     // Sort sessions by latest entry date desc (newest activity first)
-    const sortedSections = Object.entries(sessions).sort((a, b) =>
-        new Date(b[1].latestEntryCreatedAt || b[1].createdAt) -
-        new Date(a[1].latestEntryCreatedAt || a[1].createdAt)
-    );
+    const sortedSections = Object.entries(sessions).sort((a, b) => {
+        const aDate = new Date(Math.max(new Date(a[1].createdAt), new Date(a[1].latestEntryCreatedAt)));
+        const bDate = new Date(Math.max(new Date(b[1].createdAt), new Date(b[1].latestEntryCreatedAt)));
+        return bDate - aDate;
+    });
     initializeSessionExpansionState(sortedSections);
 
     let html = '';
     sortedSections.forEach(([sessionId, session]) => {
-        const sectionTimestamp = session.latestEntryCreatedAt || session.createdAt;
-        const sectionDate = new Date(sectionTimestamp).toLocaleDateString();
-        const sectionTime = new Date(sectionTimestamp).toLocaleTimeString();
+        const sectionDate = new Date(session.createdAt).toLocaleDateString();
+        const sectionTime = new Date(session.createdAt).toLocaleTimeString();
         const sectionDeleted = session.entries[0]?.sessionIsDeleted || false;
         const isExpanded = isSessionExpanded(sessionId);
         const isCurrentSession = sessionId === currentSessionId;
@@ -213,7 +226,7 @@ function renderEntriesList(entries) {
                      aria-expanded="${isExpanded}"
                      aria-current="${isCurrentSession}">
                     <span id="session-indicator-${sessionId}" class="section-toggle-indicator me-2">${isExpanded ? '▾' : '▸'}</span>
-                    <span class="flex-grow-1">${sectionDate} ${sectionTime} - ${session.tool}</span>
+                    <span class="flex-grow-1">${sectionDate} ${sectionTime} — ${session.tool}  (${session.entries.length})</span>
                     <button class="btn btn-sm btn-link p-0 me-2"
                             onclick="event.stopPropagation(); showAddEntryPanel('${sessionId}')"
                             title="Add entry to this session">
@@ -323,7 +336,10 @@ function renderEntryDetail(entry) {
                         </button>
                     </div>
                     <div class="small text-muted">
-                        ${timestamp} | Session: ${entry.sessionId} | ${entry.tool}
+                        ${timestamp} | Session: <span id="entrySessionId">${formatSessionLabel(entry.sessionId, entry.sessionCreatedAt, entry.tool)}</span>
+                        <button id="editSessionBtn" class="btn btn-sm btn-link p-0 text-muted" onclick="startEditSession()" title="Move to another session" style="font-size: 0.8rem;">✏️</button>
+                        <button id="saveSessionBtn" class="btn btn-sm btn-link p-0 text-success" onclick="saveEditedSession()" title="Save" style="font-size: 0.8rem; display: none;">✓</button>
+                        <button id="cancelSessionBtn" class="btn btn-sm btn-link p-0 text-danger" onclick="cancelEditSession()" title="Cancel" style="font-size: 0.8rem; display: none;">✗</button>
                     </div>
                 </div>
                 <div class="d-flex gap-2">
@@ -663,6 +679,87 @@ function cancelEditResponse() {
     selectEntry(entryId);
 }
 
+/**
+ * Starts editing the session by replacing the session ID text with a dropdown of existing sessions.
+ */
+async function startEditSession() {
+    const sessionSpan = document.getElementById('entrySessionId');
+    const currentSessionId = currentDetailEntry?.sessionId ?? sessionSpan.textContent.trim();
+
+    let sessions = [];
+    try {
+        const res = await fetch('/api/sessions?pageSize=200&days=90');
+        cachedSessions = await res.json();
+        sessions = cachedSessions;
+    } catch {
+        showToast('Failed to load sessions');
+        return;
+    }
+
+    const select = document.createElement('select');
+    select.id = 'sessionSelect';
+    select.className = 'form-select form-select-sm d-inline-block';
+    select.style.width = 'auto';
+    select.style.maxWidth = '400px';
+
+    sessions.forEach(s => {
+        const option = document.createElement('option');
+        const date = new Date(s.createdAt).toLocaleDateString();
+        const time = new Date(s.createdAt).toLocaleTimeString();
+        option.value = s.sessionId;
+        option.textContent = `${date} ${time} — ${s.tool}  (${s.count})`;
+        option.selected = s.sessionId === currentSessionId;
+        select.appendChild(option);
+    });
+
+    sessionSpan.replaceWith(select);
+
+    document.getElementById('editSessionBtn').style.display = 'none';
+    document.getElementById('saveSessionBtn').style.display = 'inline-block';
+    document.getElementById('cancelSessionBtn').style.display = 'inline-block';
+}
+
+/**
+ * Saves the selected session to the server and moves the entry.
+ */
+async function saveEditedSession() {
+    const select = document.getElementById('sessionSelect');
+    if (!select) return;
+
+    const newSessionId = select.value;
+    const entryId = currentDetailEntry?.id;
+
+    try {
+        const response = await fetch(`/api/entries/${entryId}/session`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: newSessionId })
+        });
+
+        if (response.ok) {
+            if (currentDetailEntry) currentDetailEntry.sessionId = newSessionId;
+            await selectEntry(entryId);
+            showToast('Session updated!');
+            loadEntries(currentSearch, 1, false);
+        } else {
+            showToast('Failed to update session');
+        }
+    } catch (error) {
+        console.error('Error updating session:', error);
+        logError('UI', 'Failed to update session', error.toString());
+        showToast('Error updating session');
+    }
+}
+
+/**
+ * Cancels editing the session and reverts to the original value.
+ */
+function cancelEditSession() {
+    const select = document.getElementById('sessionSelect');
+    if (!select) return;
+    selectEntry(currentDetailEntry?.id);
+}
+
 // Copy to clipboard
 async function copyToClipboard(elementId) {
     const element = document.getElementById(elementId);
@@ -999,6 +1096,12 @@ function cancelAddEntry() {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+    // Pre-fetch sessions so count is available immediately in the detail view
+    fetch('/api/sessions?pageSize=200&days=90')
+        .then(r => r.json())
+        .then(data => { cachedSessions = data; })
+        .catch(() => {});
+
     loadEntries();
 
     // Initialize panel resize

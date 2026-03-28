@@ -23,6 +23,7 @@ public static class EntriesEndpoints
         group.MapPatch("/{id}/deleted", UpdateDeleted);
         group.MapPatch("/{id}/question", UpdateQuestion);
         group.MapPatch("/{id}/response", UpdateResponse);
+        group.MapPatch("/{id}/session", UpdateSessionId);
     }
 
     /// <summary>
@@ -205,6 +206,24 @@ public static class EntriesEndpoints
         catch (Exception ex)
         {
             await diagnosticsService.WriteDiagnosticsAsync("WebApi.UpdateResponse", ex.Message, LogLevel.Error, ex.StackTrace ?? "", entryId: id);
+            return Results.Problem(ex.Message);
+        }
+    }
+
+    private static async Task<IResult> UpdateSessionId(
+        long id,
+        UpdateSessionIdRequest request,
+        ConversationService conversationService,
+        DiagnosticsService diagnosticsService)
+    {
+        try
+        {
+            await conversationService.UpdateSessionIdAsync(id, request.SessionId);
+            return Results.Ok(new { ok = true });
+        }
+        catch (Exception ex)
+        {
+            await diagnosticsService.WriteDiagnosticsAsync("WebApi.UpdateSessionId", ex.Message, LogLevel.Error, ex.StackTrace ?? "", entryId: id);
             return Results.Problem(ex.Message);
         }
     }

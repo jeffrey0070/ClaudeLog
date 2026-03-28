@@ -18,6 +18,8 @@ public record UpdateQuestionRequest(string Question);
 
 public record UpdateResponseRequest(string Response);
 
+public record UpdateSessionIdRequest(string SessionId);
+
 public record EntryListDto(
     long Id,
     string Title,
