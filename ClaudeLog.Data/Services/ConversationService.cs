@@ -129,5 +129,10 @@ public class ConversationService
         await _entryRepository.UpdateResponseAsync(id, response);
     }
 
+    public async Task UpdateSessionIdAsync(long id, string sessionId)
+    {
+        await _entryRepository.UpdateSessionIdAsync(id, sessionId);
+    }
+
     #endregion
 }

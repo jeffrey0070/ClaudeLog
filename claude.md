@@ -4,15 +4,13 @@
 
 When you start a new session in this project, read `CONTEXT.md` first to understand the project state.
 
-## Build/Test
+## Database Access
 
-Do not build or test automatically unless asked. The user will do that.
+Direct database access is allowed. Connection string is in the machine environment variable `CLAUDELOG_CONNECTION_STRING`. Use `sqlcmd -S localhost -d ClaudeLog -E` to query.
 
-## Update the App
+## Build/Test/Deploy
 
-When asked to "update the app":
-
-- Run `ClaudeLog.update-and-run.bat`
+After making any code changes, always run `ClaudeLog.update-and-run.bat` as Administrator to deploy.
 
 ## Documentation Preferences
 

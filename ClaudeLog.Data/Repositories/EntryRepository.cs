@@ -202,6 +202,26 @@ public class EntryRepository
     /// </summary>
     /// <param name="id">The entry ID to update</param>
     /// <param name="isFavorite">True to mark as favorite, false to unmark</param>
+    public async Task UpdateSessionIdAsync(long id, string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+            throw new ArgumentException("SessionId cannot be null or empty", nameof(sessionId));
+
+        using var conn = _dbContext.CreateConnection();
+        await conn.OpenAsync();
+
+        var query = @"
+            UPDATE dbo.Conversations
+            SET SessionId = @SessionId
+            WHERE Id = @Id";
+
+        using var cmd = new SqlCommand(query, conn);
+        cmd.Parameters.AddWithValue("@Id", id);
+        cmd.Parameters.AddWithValue("@SessionId", sessionId.Trim());
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     public async Task UpdateFavoriteAsync(long id, bool isFavorite)
     {
         using var conn = _dbContext.CreateConnection();
