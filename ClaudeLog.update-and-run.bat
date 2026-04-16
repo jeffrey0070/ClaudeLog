@@ -12,14 +12,19 @@ net session >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: This script must be run as Administrator.
     echo Right-click this file and choose "Run as administrator".
-    pause
-    exit /b 1
+    goto End
 )
 
 set "SOURCE_DIR=%~dp0"
 set "PUBLISH_ROOT=C:\Apps"
 set "WEB_PORT=15088"
-set "SERVICE_NAME=ClaudeLog.Web.exe"
+set "TASK_NAME=ClaudeLog.Web"
+set "TASK_EXISTS="
+
+if not exist "%SOURCE_DIR%ClaudeLog.sln" (
+    echo ERROR: Cannot find ClaudeLog.sln in %SOURCE_DIR%
+    goto End
+)
 
 echo.
 echo ============================================
@@ -33,10 +38,16 @@ REM ============================================
 echo Step 1: Stopping running instances
 echo.
 
-REM Stop Windows service first (production hosting mode)
-echo   Stopping Windows service %SERVICE_NAME%
-sc stop "%SERVICE_NAME%" >nul 2>&1
-timeout /t 2 /nobreak >nul
+REM Stop scheduled task host first
+powershell -NoProfile -ExecutionPolicy Bypass -Command "if (Get-ScheduledTask -TaskName '%TASK_NAME%' -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }" >nul 2>&1
+if !ERRORLEVEL! EQU 0 (
+    set "TASK_EXISTS=1"
+    echo   Ending scheduled task %TASK_NAME%
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Stop-ScheduledTask -TaskName '%TASK_NAME%' -ErrorAction SilentlyContinue" >nul 2>&1
+    timeout /t 1 /nobreak >nul
+) else (
+    echo   Scheduled task %TASK_NAME% not found. Skipping task stop.
+)
 
 REM Stop web app by port
 set "PID="
@@ -78,24 +89,21 @@ cd /d "%SOURCE_DIR%"
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: Cannot find source directory!
     echo Expected: %SOURCE_DIR%
-    pause
-    exit /b 1
+    goto End
 )
 
 echo   Cleaning
 dotnet clean ClaudeLog.sln --configuration Release --nologo --verbosity quiet
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: Clean failed!
-    pause
-    exit /b 1
+    goto End
 )
 
 echo   Building
 dotnet build ClaudeLog.sln --configuration Release --nologo --verbosity quiet
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: Build failed!
-    pause
-    exit /b 1
+    goto End
 )
 
 echo   Build completed successfully.
@@ -118,8 +126,7 @@ dotnet publish ClaudeLog.Web\ClaudeLog.Web.csproj ^
     --verbosity quiet
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: Publish Web failed!
-    pause
-    exit /b 1
+    goto End
 )
 
 REM Claude Code Hook
@@ -131,8 +138,7 @@ dotnet publish ClaudeLog.Hook.Claude\ClaudeLog.Hook.Claude.csproj ^
     --verbosity quiet
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: Publish Claude Hook failed!
-    pause
-    exit /b 1
+    goto End
 )
 
 REM Codex Hook
@@ -144,8 +150,7 @@ dotnet publish ClaudeLog.Hook.Codex\ClaudeLog.Hook.Codex.csproj ^
     --verbosity quiet
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: Publish Codex Hook failed!
-    pause
-    exit /b 1
+    goto End
 )
 
 REM Gemini Hook
@@ -157,8 +162,7 @@ dotnet publish ClaudeLog.Hook.Gemini\ClaudeLog.Hook.Gemini.csproj ^
     --verbosity quiet
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: Publish Gemini Hook failed!
-    pause
-    exit /b 1
+    goto End
 )
 
 REM MCP Server
@@ -170,21 +174,20 @@ dotnet publish ClaudeLog.MCP\ClaudeLog.MCP.csproj ^
     --verbosity quiet
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: Publish MCP failed!
-    pause
-    exit /b 1
+    goto End
 )
 
 echo   All components published successfully.
 echo.
 
-REM Copy ClaudeLog.bat to C:\Apps
-echo   Copying ClaudeLog.bat to %PUBLISH_ROOT%
+REM Copy helper scripts to C:\Apps
+echo   Copying helper scripts to %PUBLISH_ROOT%
 copy /Y "%SOURCE_DIR%ClaudeLog.bat" "%PUBLISH_ROOT%\ClaudeLog.bat" >nul
-if %ERRORLEVEL% NEQ 0 (
-    echo WARNING: Failed to copy ClaudeLog.bat
-) else (
-    echo   ClaudeLog.bat copied successfully.
-)
+if %ERRORLEVEL% NEQ 0 (echo WARNING: Failed to copy ClaudeLog.bat) else (echo   ClaudeLog.bat copied successfully.)
+copy /Y "%SOURCE_DIR%ClaudeLog.install-or-update-scheduled-task.ps1" "%PUBLISH_ROOT%\ClaudeLog.install-or-update-scheduled-task.ps1" >nul
+if %ERRORLEVEL% NEQ 0 (echo WARNING: Failed to copy ClaudeLog.install-or-update-scheduled-task.ps1) else (echo   ClaudeLog.install-or-update-scheduled-task.ps1 copied successfully.)
+copy /Y "%SOURCE_DIR%set-connection-string.bat" "%PUBLISH_ROOT%\set-connection-string.bat" >nul
+if %ERRORLEVEL% NEQ 0 (echo WARNING: Failed to copy set-connection-string.bat) else (echo   set-connection-string.bat copied successfully.)
 echo.
 
 REM ============================================
@@ -197,17 +200,21 @@ echo.
 echo Access at: http://localhost:%WEB_PORT%
 echo.
 
-echo   Starting Windows service %SERVICE_NAME%
-sc start "%SERVICE_NAME%" >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo WARNING: Failed to start service %SERVICE_NAME%.
-    echo Verify the service exists and points to %PUBLISH_ROOT%\ClaudeLog.Web\ClaudeLog.Web.exe
+if defined TASK_EXISTS (
+    echo   Starting scheduled task %TASK_NAME%
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-ScheduledTask -TaskName '%TASK_NAME%'" >nul 2>&1
+    if !ERRORLEVEL! NEQ 0 (
+        echo WARNING: Failed to start scheduled task %TASK_NAME%.
+        echo Verify the task points to %PUBLISH_ROOT%\ClaudeLog.Web\ClaudeLog.Web.exe
+    ) else (
+        echo   Scheduled task started.
+    )
 ) else (
-    echo   Service started.
+    echo   Scheduled task %TASK_NAME% not found. Skipping host start.
 )
 
-endlocal
+:End
 echo.
-echo Press Enter to exit...
-pause
+set /p "_pause=Press Enter to exit..."
+endlocal
 

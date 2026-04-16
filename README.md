@@ -1,106 +1,194 @@
 # ClaudeLog
 
-Automatic conversation logger for Claude Code and Codex CLIs with web-based browsing interface.
+Automatic conversation logger for Claude Code, Codex, and Gemini CLI, with a SQL Server backend and a web UI for browsing logged conversations.
 
-## Overview
+`README.md` is the canonical setup, deployment, and configuration guide for this repo.
 
-ClaudeLog captures every Q&A from your CLI conversations and stores them in SQL Server with a web UI for browsing, searching, and managing your conversation history.
+## Projects
 
-## Features
-1. Log Claude Code, Codex, and Gemini CLI conversations
-2. Support for both Hook and MCP integration methods
-3. Web UI for browsing, searching, and managing conversations
+- `ClaudeLog.Web` - ASP.NET Core web UI (Razor Pages + Minimal APIs)
+- `ClaudeLog.Data` - ADO.NET data layer, models, repositories, SQL migrations
+- `ClaudeLog.Hook.Claude` - Claude Code stop hook
+- `ClaudeLog.Hook.Codex` - Codex hook (`--notify` and `--watch`)
+- `ClaudeLog.Hook.Gemini` - Gemini CLI hook
+- `ClaudeLog.MCP` - MCP server for manual logging flows
+
+## Prerequisites
+
+- Windows
+- .NET SDK / runtime for the solution
+- SQL Server
+
+## Root Scripts
+
+- `ClaudeLog.update-and-run.bat`
+  Publishes all projects to `C:\Apps\ClaudeLog.*` and restarts the scheduled task host if it already exists.
+- `ClaudeLog.bat`
+  Manually runs the published web app in the foreground.
+- `ClaudeLog.install-or-update-scheduled-task.ps1`
+  Creates or updates a current-user logon task for the published web app.
+- `set-connection-string.bat`
+  Sets `CLAUDELOG_CONNECTION_STRING` at machine scope or current-user scope.
 
 ## Quick Start
 
-### Prerequisites
+### 1. Set the database connection string
 
-- SQL Server
+All components read `CLAUDELOG_CONNECTION_STRING`.
 
-### Setup
+Machine scope is recommended when hooks may run in other user contexts:
 
-1. **Build and publish and run:**
-   ```bash
-   ClaudeLog.update-and-run.bat
-   ```
-   This builds all projects, publishes to `C:\Apps\ClaudeLog.*`, and starts the web app.
-   **Admin required:** these scripts set machine-level environment variables and publish under `C:\Apps`. Run the batch files from an elevated terminal or right-click and choose **Run as administrator** so hooks can read the same non-user settings across accounts.
+```bat
+set-connection-string.bat
+```
 
-   **Database initialization is automatic!** The web app will:
-   - Create the database if it doesn't exist
-   - Create all tables and indexes
-   - Track schema version (1.0.0)
-   - Automatically upgrade on future schema changes
+Current-user scope is enough for local development or a current-user scheduled task:
 
-   **Run only** next time you just need to run it because it's already built and published:
-   ```bash
-   ClaudeLog.bat
-   ```
+```bat
+set-connection-string.bat user
+```
 
-2. **Configure for Claude Code** (choose Hook or MCP):
+Examples:
 
-   **Option A: Hook**
+```text
+Server=localhost;Database=ClaudeLog;Integrated Security=true;TrustServerCertificate=true;
+Server=localhost;Database=ClaudeLog;User Id=myUsername;Password=myPassword;TrustServerCertificate=true;
+```
 
-   Edit `%USERPROFILE%\.claude\settings.json`:
-   ```json
-   {
-     "hooks": {
-       "Stop": [{
-         "hooks": [{
-           "type": "command",
-           "command": "C:/Apps/ClaudeLog.Hook.Claude/ClaudeLog.Hook.Claude.exe",
-           "timeout": 30
-         }]
-       }]
-     }
-   }
-   ```
+### 2. Publish to `C:\Apps`
 
-   **Note:** Hooks have known issues in VS Code extension Native UI mode. Use MCP if experiencing problems.
-   **Admin note:** ensure `CLAUDELOG_CONNECTION_STRING` is set at the machine level so hooks launched under other users can access the database.
+```bat
+ClaudeLog.update-and-run.bat
+```
 
-   **Option B: MCP Server**
+This script:
 
-   Edit `%USERPROFILE%\.claude\settings.json`:
-   ```json
-   {
-     "mcpServers": {
-       "claudelog": {
-         "type": "stdio",
-         "command": "C:\\Apps\\ClaudeLog.MCP\\ClaudeLog.MCP.exe",
-         "args": []
-       }
-     }
-   }
-   ```
+- stops the existing scheduled task host if it is configured
+- builds the solution in `Release`
+- publishes all projects to `C:\Apps\ClaudeLog.*`
+- restarts the existing scheduled task host if it is configured
 
-3. **Configure Codex** (choose Hook or MCP):
+Notes:
 
-**Option A: Hook**
+- Publishing to `C:\Apps` usually requires Administrator.
+- The web app initializes the database automatically on startup.
+- Migrations are applied from `ClaudeLog.Data/Scripts/*.sql`.
+- If the scheduled task `ClaudeLog.Web` does not exist yet, publishing does not start the app automatically.
 
-**Notify mode** (recommended with Codex 0.5+):
-1. Edit `%USERPROFILE%\.codex\config.toml`.
-2. **Important:** place the `notify = [...]` array near the top of the file (before any `[profiles.*]` blocks). The Codex CLI only reads `notify` from the root config; profile-scoped copies are ignored.
-3. Point `notify` at the published hook so Codex fires it every time a turn completes:
-   ```toml
-   notify = [
-     "C:\\Apps\\ClaudeLog.Hook.Codex\\ClaudeLog.Hook.Codex.exe",
-     "--notify"
-   ]
-   ```
-   Codex passes the JSON payload as the final argument; the hook parses the payload, ensures a stable session ID from `thread-id`, and writes the Q&A immediately without touching transcripts.
-   **Admin note:** ensure `CLAUDELOG_CONNECTION_STRING` is set at the machine level so hooks launched under other users can access the database.
+### 3. Choose how to host the published web app
 
-**Watcher mode** (fallback for older Codex builds):
-```bash
+#### Scheduled task
+
+Create or update a current-user logon task:
+
+```powershell
+.\ClaudeLog.install-or-update-scheduled-task.ps1
+```
+
+The script creates a task named `ClaudeLog.Web` with these settings:
+
+- current user
+- run only when that user is logged on
+- no highest-privileges elevation
+- trigger at logon
+- action launches `C:\Apps\ClaudeLog.Web\ClaudeLog.Web.exe`
+- `ASPNETCORE_ENVIRONMENT=Production`
+- `ASPNETCORE_URLS=http://localhost:15088`
+
+Start it immediately:
+
+```powershell
+Start-ScheduledTask -TaskName "ClaudeLog.Web"
+```
+
+#### Manual foreground run
+
+```bat
+ClaudeLog.bat
+```
+
+This is useful for local verification and troubleshooting.
+
+### 4. Open the web UI
+
+```text
+http://localhost:15088
+```
+
+## Client Configuration
+
+### Claude Code
+
+#### Hook
+
+Edit `%USERPROFILE%\.claude\settings.json`:
+
+```json
+{
+  "hooks": {
+    "Stop": [{
+      "hooks": [{
+        "type": "command",
+        "command": "C:/Apps/ClaudeLog.Hook.Claude/ClaudeLog.Hook.Claude.exe",
+        "timeout": 30
+      }]
+    }]
+  }
+}
+```
+
+Notes:
+
+- Hooks have known issues in VS Code extension Native UI mode. Use MCP if needed.
+- For cross-user hook execution, prefer a machine-level `CLAUDELOG_CONNECTION_STRING`.
+
+#### MCP
+
+Edit `%USERPROFILE%\.claude\settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "claudelog": {
+      "type": "stdio",
+      "command": "C:\\Apps\\ClaudeLog.MCP\\ClaudeLog.MCP.exe",
+      "args": []
+    }
+  }
+}
+```
+
+### Codex
+
+#### Hook
+
+Notify mode is the preferred option for newer Codex builds.
+
+Edit `%USERPROFILE%\.codex\config.toml` and place `notify = [...]` near the top of the file, before any `[profiles.*]` blocks:
+
+```toml
+notify = [
+  "C:\\Apps\\ClaudeLog.Hook.Codex\\ClaudeLog.Hook.Codex.exe",
+  "--notify"
+]
+```
+
+Notes:
+
+- Codex only reads `notify` from the root config.
+- The hook derives a stable session ID from `thread-id` and logs directly from the notify payload.
+- For cross-user execution, prefer a machine-level `CLAUDELOG_CONNECTION_STRING`.
+
+Watcher mode remains available for older Codex builds:
+
+```bat
 ClaudeLog.Hook.Codex.exe --watch "%USERPROFILE%\.codex\sessions"
 ```
 
-   **Option B: MCP Server**
+#### MCP
 
-### Codex MCP Server (Alternative - Manual control, higher token usage)
+Edit `%USERPROFILE%\.codex\config.toml`:
 
-**Create/edit** `%USERPROFILE%\.codex\config.toml`:
 ```toml
 [mcp_servers.claudelog]
 command = "C:\\Apps\\ClaudeLog.MCP\\ClaudeLog.MCP.exe"
@@ -108,181 +196,136 @@ args = []
 startup_timeout_ms = 20000
 ```
 
+MCP usage flow:
 
-   **How to use MCP for logging:**
-   When start a Claude Code session or a Codex session, type:
-    1. Please launch MCP server mcp_servers.claudelog.
+1. Launch `mcp_servers.claudelog`.
+2. Call `CreateSession` to create a logging session.
+3. Call `LogConversation` with the current question and previous response.
 
-    2. Please call CreateSection with parameter tool="yourname" to create a new logging section, and store the returned sectionId from the response.
+Hook integration is usually better because MCP logging consumes extra tokens.
 
-    3. When I say Log or Log conversation, please call LogConversation to log our previous conversation, with the following parameters:
+### Gemini CLI
 
-        sessionId: The stored sectionId from the initialization step.
-        question: My complete, most recent message.
-        response: Your complete, preceding response.
+Edit `%USERPROFILE%\.gemini\settings.json`:
 
-   **Note:** MCP logging may double token consumption because the logging go through server. So try hook first.
+```json
+{
+  "tools": {
+    "enableHooks": true,
+    "enableMessageBusIntegration": true
+  },
+  "hooks": {
+    "AfterModel": [{
+      "matcher": "*",
+      "hooks": [{
+        "name": "claudelog-gemini",
+        "type": "command",
+        "command": "C:/Apps/ClaudeLog.Hook.Gemini/ClaudeLog.Hook.Gemini.exe",
+        "timeout": 30000
+      }]
+    }]
+  }
+}
+```
 
-4. **Configure for Gemini CLI**
+Notes:
 
-   Edit `%USERPROFILE%\.gemini\settings.json` and enable hooks, then register the `AfterModel` hook (logs every turn).
-
-   ```json
-   {
-     "tools": {
-       "enableHooks": true,
-       "enableMessageBusIntegration": true
-     },
-     "hooks": {
-       "AfterModel": [{
-         "matcher": "*",
-         "hooks": [{
-           "name": "claudelog-gemini",
-           "type": "command",
-           "command": "C:/Apps/ClaudeLog.Hook.Gemini/ClaudeLog.Hook.Gemini.exe",
-           "timeout": 30000
-         }]
-       }]
-     }
-   }
-   ```
-
-   **Optional:** Use `SessionEnd` if you only want one log entry per session.
-
-   **Note on Payload:** If the hook fails to log conversations, you can inspect the actual payload by setting the `CLAUDELOG_GEMINI_DUMP_PAYLOAD=1` environment variable. This will save the payload to a file named `gemini-payload-dump.json` in your system's temporary directory.
-   **Admin note:** ensure `CLAUDELOG_CONNECTION_STRING` is set at the machine level so hooks launched under other users can access the database.
-
-5. **Access UI:** http://localhost:15088
-
-
-   **Database initialization is automatic!** The web app will:
-   - Create the database if it doesn't exist
-   - Create all tables and indexes
-   - Track schema version (1.0.0)
-   - Automatically upgrade on future schema changes
-
-## Architecture
-
-### Projects
-
-- **ClaudeLog.Data** - Shared ADO.NET data layer (repositories, models)
-- **ClaudeLog.Web** - ASP.NET Core web app (Razor Pages + Minimal APIs)
-- **ClaudeLog.Hook.Claude** - Claude Code Stop hook (console app)
-- **ClaudeLog.Hook.Codex** - Codex hook with stdin/watcher modes (console app)
-- **ClaudeLog.Hook.Gemini** - Gemini CLI `AfterModel` hook (console app)
-- **ClaudeLog.MCP** - MCP server for Codex integration (STDIO transport)
-
-
-## Database
-
-**Automatic initialization** - Just run the web app:
-- No database? Creates it + runs all migration scripts
-- Database exists? Checks version, runs pending migrations
-- Connection fails? Shows error with setup instructions
-
-**Schema versioning:**
-- Migration scripts in `ClaudeLog.Data/Scripts/`: `1.0.0.sql`, `1.1.0.sql`, etc.
-- Embedded as resources in Data project DLL
-- Tracked in `DatabaseVersion` table
-- All-or-nothing transactions (rollback on failure)
-
-**To add a migration:**
-1. Add `ClaudeLog.Data/Scripts/X.Y.Z.sql` (semantic version)
-2. Rebuild the Data project
-3. Run web app - applies automatically
+- `AfterModel` is the recommended event for per-turn logging.
+- `SessionEnd` is optional if you want one log entry per session instead.
+- For payload inspection, set `CLAUDELOG_GEMINI_DUMP_PAYLOAD=1`.
+- For cross-user execution, prefer a machine-level `CLAUDELOG_CONNECTION_STRING`.
 
 ## Configuration
 
-**Web app port:**
-- Production: 15088 (configured in `ClaudeLog.update-and-run.bat`)
-- Development: 15089 (configured in `appsettings.Development.json`)
+### Web URLs
 
-**Database connection (single source of truth):**
-- `CLAUDELOG_CONNECTION_STRING` - Database connection string (required)
-  - All components (Web, Hooks, MCP, services) read this value.
-  - Use `set-connection-string.bat` (run as Administrator) to configure it at the machine level.
+- Production: `http://localhost:15088`
+- Development: `http://localhost:15089`
+
+Production URL comes from:
+
+- `ASPNETCORE_URLS`
+- otherwise the non-development default in `ClaudeLog.Web/Program.cs`
+
+### Database initialization
+
+On startup, the web app:
+
+- creates the database if it does not exist
+- creates required tables and indexes
+- records the schema version
+- applies pending SQL migrations
+
+To add a migration:
+
+1. Add `ClaudeLog.Data/Scripts/X.Y.Z.sql`
+2. Rebuild or republish
+3. Start the web app
 
 ## Permissions
 
-- Run `ClaudeLog.update-and-run.bat`, `ClaudeLog.bat`, and `set-connection-string.bat` as **Administrator** to set machine-level environment variables and publish to `C:\Apps`.
-- Hooks are executed by other user contexts; machine-level settings keep them consistent across accounts.
-
-**Hook/MCP environment variables:**
-- `CLAUDELOG_DEBUG` - Set to `1` to enable debug logging to `%USERPROFILE%\.claudelog\hook-claude-debug.log` (Claude hook)
-- `CLAUDELOG_WAIT_FOR_DEBUGGER` - Set to `1` to pause hook and wait for Visual Studio debugger attachment (Claude hook)
-- `CLAUDELOG_DEBUGGER_WAIT_SECONDS` - Seconds to wait for debugger (default: 60)
-- `CLAUDELOG_HOOK_LOGLEVEL` - Set to `verbose` for debug logging (Codex hook only)
-- `CLAUDELOG_GEMINI_DUMP_PAYLOAD` - Set to `1` to dump the raw JSON payload from the Gemini CLI hook to a file for inspection.
+- `ClaudeLog.update-and-run.bat`
+  Usually requires Administrator because it publishes to `C:\Apps`.
+- `set-connection-string.bat`
+  Requires Administrator only for machine scope.
+- `ClaudeLog.install-or-update-scheduled-task.ps1`
+  Does not require Administrator for the current-user logon task it creates.
+- `ClaudeLog.bat`
+  Does not require Administrator if the published files are already accessible.
 
 ## Debugging
 
-### Debugging Claude Hook
+### Claude hook
 
-**Option 1: Debug Log File** (recommended for most cases)
+Enable debug logging:
 
-1. **Enable debug mode** - Set environment variable before starting Claude Code:
-   ```bash
-   set CLAUDELOG_DEBUG=1
-   claude
-   ```
+```bat
+set CLAUDELOG_DEBUG=1
+claude
+```
 
-2. **Check the debug log:**
-   ```bash
-   type %USERPROFILE%\.claudelog\hook-claude-debug.log
-   ```
+View the log:
 
-3. **Watch in real-time:**
-   ```bash
-   powershell Get-Content %USERPROFILE%\.claudelog\hook-claude-debug.log -Wait -Tail 20
-   ```
+```bat
+type %USERPROFILE%\.claudelog\hook-claude-debug.log
+```
 
-The log shows:
-- Hook execution timestamps
-- Input JSON from Claude Code
-- Session ID and transcript path
-- Transcript parsing details
-- Database operations
-- Any errors with stack traces
+Watch it live:
 
-**Option 2: Visual Studio Debugger** (for deep debugging)
+```powershell
+Get-Content $env:USERPROFILE\.claudelog\hook-claude-debug.log -Wait -Tail 20
+```
 
-The hook normally exits in milliseconds, but you can make it wait for debugger attachment:
+Pause the hook for debugger attach:
 
-1. **Enable debugger wait mode:**
-   ```bash
-   set CLAUDELOG_DEBUG=1
-   set CLAUDELOG_WAIT_FOR_DEBUGGER=1
-   set CLAUDELOG_DEBUGGER_WAIT_SECONDS=60
-   claude
-   ```
+```bat
+set CLAUDELOG_DEBUG=1
+set CLAUDELOG_WAIT_FOR_DEBUGGER=1
+set CLAUDELOG_DEBUGGER_WAIT_SECONDS=60
+claude
+```
 
-2. **Start a conversation** - The hook will pause and log its Process ID
+If the default Claude hook timeout is too short, either:
 
-3. **Attach debugger in Visual Studio:**
-   - Debug > Attach to Process (Ctrl+Alt+P)
-   - Filter for "ClaudeLog.Hook.Claude.exe"
-   - Select the process and click "Attach"
-   - The hook will automatically break into the debugger
+- lower `CLAUDELOG_DEBUGGER_WAIT_SECONDS`
+- or increase the hook timeout in `.claude\settings.json`
 
-4. **Set breakpoints and debug** as normal
+### Gemini hook notes
 
-**Warning:** Claude Code's hook timeout is 30 seconds by default. If you need more time:
-- Set `CLAUDELOG_DEBUGGER_WAIT_SECONDS=25` to stay under timeout
-- Or increase timeout in `.claude\settings.json`: `"timeout": 60`
+- Hook timeouts are milliseconds. Use `30000` for 30 seconds.
+- Gemini runs hook commands under PowerShell on Windows.
+- `AfterModel` is streaming. Log only on the final chunk.
+- If needed, republish the Gemini hook directly:
 
-## Technical Notes
+```bat
+dotnet publish ClaudeLog.Hook.Gemini\ClaudeLog.Hook.Gemini.csproj -c Release -o C:\Apps\ClaudeLog.Hook.Gemini
+```
 
-- Gemini CLI hooks are disabled by default. Enable with:
-  - `tools.enableHooks=true`
-  - `tools.enableMessageBusIntegration=true`
-  - hooks configuration in `%USERPROFILE%\.gemini\settings.json`
-- Hook timeouts are **milliseconds**. A value like `30` means 30ms and will kill hooks. Use `30000` for 30 seconds.
-- On Windows, Gemini runs hooks under **PowerShell**, not `cmd`. Use PowerShell syntax in hook commands (no `&&`, use `$env:VAR=...`).
-- The recommended Gemini event is `AfterModel` to log every turn; `SessionEnd` only fires on exit/clear.
-- `AfterModel` is **streaming**. The hook is invoked for multiple chunks. Log only when the chunk has `finishReason`, and aggregate chunk text until final to avoid duplicates.
-- Transcript files can lag behind streaming; reading `transcript_path` too early can pair a prompt with the previous response. Prefer the `llm_request` + aggregated `llm_response` for `AfterModel`.
-- If entries still do not appear, confirm the published hook matches the latest code:
-  - `dotnet publish ClaudeLog.Hook.Gemini\ClaudeLog.Hook.Gemini.csproj -c Release -o C:\Apps\ClaudeLog.Hook.Gemini`
-- Debugging:
-  - Set `CLAUDELOG_GEMINI_DUMP_PAYLOAD=1` to capture the raw payload in `%TEMP%\gemini-payload-dump.json`.
-  - Use `/hooks panel` in Gemini CLI to verify the hook is registered and enabled.
+## Build and Development
+
+- Restore/build: `dotnet restore` then `dotnet build ClaudeLog.sln -c Release`
+- Run web in development: `dotnet run --project ClaudeLog.Web --urls http://localhost:15089`
+- Verify endpoints:
+  - `/api/sessions`
+  - `/api/entries`
+  - `/api/errors`

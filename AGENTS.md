@@ -5,15 +5,18 @@
 - `ClaudeLog.Data/` - Data layer (ADO.NET, models, repositories, migrations in `Scripts/`)
 - `ClaudeLog.Hook.Claude/` - Claude Code stop hook (console)
 - `ClaudeLog.Hook.Codex/` - Codex hook (stdin/watcher modes)
+- `ClaudeLog.Hook.Gemini/` - Gemini CLI hook (console)
 - `ClaudeLog.MCP/` - MCP server (STDIO)
-- Root scripts: `ClaudeLog.update-and-run.bat`, `ClaudeLog.bat`
+- Root docs/scripts: `README.md`, `ClaudeLog.update-and-run.bat`, `ClaudeLog.bat`, `ClaudeLog.install-or-update-scheduled-task.ps1`, `set-connection-string.bat`
 
 ## Build, Test, and Development Commands
 - Restore/build solution: `dotnet restore` then `dotnet build ClaudeLog.sln -c Release`
 - Run Web (dev): `dotnet run --project ClaudeLog.Web --urls http://localhost:15089`
-- Publish + run (prod-like): `ClaudeLog.update-and-run.bat` (publishes to `C:\Apps\ClaudeLog.*` and starts Web on `http://localhost:15088`)
+- Publish + restart scheduled task host: `ClaudeLog.update-and-run.bat`
 - Run published Web: `ClaudeLog.bat`
-- Connection string: configure via `CLAUDELOG_CONNECTION_STRING` environment variable (preferred). Use `ClaudeLog.set-connection-string.bat` to set it.
+- Install/update current-user logon task: `.\ClaudeLog.install-or-update-scheduled-task.ps1`
+- Connection string: configure via `CLAUDELOG_CONNECTION_STRING`. Use `set-connection-string.bat`.
+- `README.md` is the single source of truth for setup, deployment, hosting, and CLI configuration details.
 
 ## Coding Style & Naming Conventions
 - C# (net9.0), `Nullable` and `ImplicitUsings` enabled. Use 4-space indentation.
@@ -33,6 +36,6 @@
 
 ## Security & Configuration Tips
 - Never commit secrets. Prefer `CLAUDELOG_CONNECTION_STRING` for local overrides.
-- Ports: Production `15088` (see `ClaudeLog.Web/appsettings.Production.json`). Update docs if you change ports.
+- Ports: Production `15088` (see `ClaudeLog.Web/Program.cs`, `ClaudeLog.bat`, and `ClaudeLog.install-or-update-scheduled-task.ps1`). Update docs if you change ports.
 - DB migrations: add `ClaudeLog.Data/Scripts/X.Y.Z.sql`, rebuild, and on next run Web will apply it automatically.
 
