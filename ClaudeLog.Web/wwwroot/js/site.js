@@ -15,6 +15,8 @@ let sessionExpandedState = {};
 let currentDetailEntry = null;
 let currentSessionId = null;
 let cachedSessions = [];
+const sessionsPageSize = 500;
+const sessionsLookbackDays = 36500;
 
 /**
  * Formats a session label consistently: "date time — tool  (count)"
@@ -130,9 +132,18 @@ function debounce(func, wait) {
  */
 async function loadEntries(search = '', page = 1, append = false) {
     try {
-        const url = `/api/entries?search=${encodeURIComponent(search)}&page=${page}&pageSize=${pageSize}&includeDeleted=${includeDeleted}&showFavoritesOnly=${showFavoritesOnly}`;
-        const response = await fetch(url);
-        const entries = await response.json();
+        const entriesUrl = `/api/entries?search=${encodeURIComponent(search)}&page=${page}&pageSize=${pageSize}&includeDeleted=${includeDeleted}&showFavoritesOnly=${showFavoritesOnly}`;
+        const sessionsUrl = `/api/sessions?pageSize=${sessionsPageSize}&days=${sessionsLookbackDays}&includeDeleted=${includeDeleted}`;
+        const [entriesResponse, sessionsResponse] = await Promise.all([
+            fetch(entriesUrl),
+            fetch(sessionsUrl)
+        ]);
+        const [entries, sessions] = await Promise.all([
+            entriesResponse.json(),
+            sessionsResponse.json()
+        ]);
+
+        cachedSessions = Array.isArray(sessions) ? sessions : [];
 
         if (!append) {
             allEntries = entries;
@@ -173,11 +184,6 @@ function applyFilters() {
 function renderEntriesList(entries) {
     const container = document.getElementById('entriesList');
 
-    if (entries.length === 0) {
-        container.innerHTML = '<div class="text-center text-muted p-4">No conversations found</div>';
-        return;
-    }
-
     // Group by session (CLI session)
     const sessions = {};
     entries.forEach(entry => {
@@ -198,6 +204,26 @@ function renderEntriesList(entries) {
         sessions[entry.sessionId].entries.push(entry);
     });
 
+    const shouldIncludeEmptySessions = !currentSearch.trim() && !showFavoritesOnly;
+    if (shouldIncludeEmptySessions) {
+        cachedSessions.forEach(session => {
+            if (!sessions[session.sessionId]) {
+                sessions[session.sessionId] = {
+                    tool: session.tool,
+                    createdAt: session.createdAt,
+                    latestEntryCreatedAt: session.createdAt,
+                    entries: [],
+                    isDeleted: session.isDeleted
+                };
+            }
+        });
+    }
+
+    if (Object.keys(sessions).length === 0) {
+        container.innerHTML = '<div class="text-center text-muted p-4">No conversations found</div>';
+        return;
+    }
+
     // Sort sessions by latest entry date desc (newest activity first)
     const sortedSections = Object.entries(sessions).sort((a, b) => {
         const aDate = new Date(Math.max(new Date(a[1].createdAt), new Date(a[1].latestEntryCreatedAt)));
@@ -210,9 +236,12 @@ function renderEntriesList(entries) {
     sortedSections.forEach(([sessionId, session]) => {
         const sectionDate = new Date(session.createdAt).toLocaleDateString();
         const sectionTime = new Date(session.createdAt).toLocaleTimeString();
-        const sectionDeleted = session.entries[0]?.sessionIsDeleted || false;
+        const sectionDeleted = session.entries[0]?.sessionIsDeleted ?? session.isDeleted ?? false;
         const isExpanded = isSessionExpanded(sessionId);
         const isCurrentSession = sessionId === currentSessionId;
+        const sessionCount = session.entries.length > 0
+            ? session.entries.length
+            : (cachedSessions.find(s => s.sessionId === sessionId)?.count ?? 0);
         
         const sectionDeleteTitle = sectionDeleted ? 'Restore section' : 'Delete section';
         const sectionClass = sectionDeleted ? 'deleted-entry' : '';
@@ -226,7 +255,7 @@ function renderEntriesList(entries) {
                      aria-expanded="${isExpanded}"
                      aria-current="${isCurrentSession}">
                     <span id="session-indicator-${sessionId}" class="section-toggle-indicator me-2">${isExpanded ? '▾' : '▸'}</span>
-                    <span class="flex-grow-1">${sectionDate} ${sectionTime} — ${session.tool}  (${session.entries.length})</span>
+                    <span class="flex-grow-1">${sectionDate} ${sectionTime} — ${session.tool}  (${sessionCount})</span>
                     <button class="btn btn-sm btn-link p-0 me-2"
                             onclick="event.stopPropagation(); showAddEntryPanel('${sessionId}')"
                             title="Add entry to this session">
@@ -241,34 +270,42 @@ function renderEntriesList(entries) {
                 <div id="session-entries-${sessionId}" class="entries-in-section ${isExpanded ? '' : 'collapsed'}">
         `;
 
-        session.entries.forEach(entry => {
-            const entryDate = new Date(entry.createdAt).toLocaleDateString();
-            const entryTime = new Date(entry.createdAt).toLocaleTimeString();
-            const entryDateTime = `${entryDate} ${entryTime}`;
-            const isSelected = entry.id === selectedEntryId;
-            const deleteTitle = entry.isDeleted ? 'Restore' : 'Delete';
+        if (session.entries.length === 0) {
             html += `
-                <div class="entry-item p-2 border-bottom ${isSelected ? 'selected' : ''} "
-                     data-entry-id="${entry.id}"
-                     title="${entryDateTime}">
-                    <div class="d-flex align-items-center gap-2">
-                        <button class="btn btn-sm btn-link p-0 favorite-btn"
-                                onclick="event.stopPropagation(); toggleFavoriteInline(${entry.id}, ${!entry.isFavorite})"
-                                title="${entry.isFavorite ? 'Remove from favorites' : 'Add to favorites'}">
-                            ${entry.isFavorite ? '★' : '☆'}
-                        </button>
-                        <div class="entry-title flex-grow-1" onclick="selectEntry(${entry.id})" style="cursor: pointer;">
-                            ${escapeHtml(entry.title)}
-                        </div>
-                        <button class="btn btn-sm btn-link p-0 delete-btn"
-                                onclick="event.stopPropagation(); toggleDeletedInline(${entry.id}, ${!entry.isDeleted})"
-                                title="${deleteTitle}">
-                            ${entry.isDeleted ? '↩' : '🗑'}
-                        </button>
-                    </div>
+                <div class="p-2 border-bottom text-muted small">
+                    No entries in this session
                 </div>
             `;
-        });
+        } else {
+            session.entries.forEach(entry => {
+                const entryDate = new Date(entry.createdAt).toLocaleDateString();
+                const entryTime = new Date(entry.createdAt).toLocaleTimeString();
+                const entryDateTime = `${entryDate} ${entryTime}`;
+                const isSelected = entry.id === selectedEntryId;
+                const deleteTitle = entry.isDeleted ? 'Restore' : 'Delete';
+                html += `
+                    <div class="entry-item p-2 border-bottom ${isSelected ? 'selected' : ''} "
+                         data-entry-id="${entry.id}"
+                         title="${entryDateTime}">
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="btn btn-sm btn-link p-0 favorite-btn"
+                                    onclick="event.stopPropagation(); toggleFavoriteInline(${entry.id}, ${!entry.isFavorite})"
+                                    title="${entry.isFavorite ? 'Remove from favorites' : 'Add to favorites'}">
+                                ${entry.isFavorite ? '★' : '☆'}
+                            </button>
+                            <div class="entry-title flex-grow-1" onclick="selectEntry(${entry.id})" style="cursor: pointer;">
+                                ${escapeHtml(entry.title)}
+                            </div>
+                            <button class="btn btn-sm btn-link p-0 delete-btn"
+                                    onclick="event.stopPropagation(); toggleDeletedInline(${entry.id}, ${!entry.isDeleted})"
+                                    title="${deleteTitle}">
+                                ${entry.isDeleted ? '↩' : '🗑'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
 
         html += `
                 </div>
@@ -688,7 +725,7 @@ async function startEditSession() {
 
     let sessions = [];
     try {
-        const res = await fetch('/api/sessions?pageSize=200&days=90');
+        const res = await fetch(`/api/sessions?pageSize=${sessionsPageSize}&days=${sessionsLookbackDays}&includeDeleted=${includeDeleted}`);
         cachedSessions = await res.json();
         sessions = cachedSessions;
     } catch {
@@ -1097,7 +1134,7 @@ function cancelAddEntry() {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     // Pre-fetch sessions so count is available immediately in the detail view
-    fetch('/api/sessions?pageSize=200&days=90')
+    fetch(`/api/sessions?pageSize=${sessionsPageSize}&days=${sessionsLookbackDays}&includeDeleted=${includeDeleted}`)
         .then(r => r.json())
         .then(data => { cachedSessions = data; })
         .catch(() => {});
