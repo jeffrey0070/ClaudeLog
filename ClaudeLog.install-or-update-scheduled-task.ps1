@@ -39,11 +39,15 @@ param(
 
 $env:ASPNETCORE_ENVIRONMENT = 'Production'
 $env:ASPNETCORE_URLS = $AppUrl
+$startupLog = Join-Path $AppRoot 'startup.log'
+$startupErrorLog = Join-Path $AppRoot 'startup-error.log'
 
 Start-Process `
     -FilePath $AppExe `
     -WorkingDirectory $AppRoot `
-    -WindowStyle Hidden
+    -WindowStyle Hidden `
+    -RedirectStandardOutput $startupLog `
+    -RedirectStandardError $startupErrorLog
 '@
 
     Set-Content -LiteralPath $launcherScript -Value $launcherContent -Encoding ASCII

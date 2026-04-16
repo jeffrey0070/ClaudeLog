@@ -255,6 +255,12 @@ On startup, the web app:
 - creates required tables and indexes
 - records the schema version
 - applies pending SQL migrations
+- retries database initialization during startup for up to 10 minutes by default
+
+Startup retry behavior can be adjusted with:
+
+- `CLAUDELOG_DB_STARTUP_MAX_WAIT_MINUTES`
+- `CLAUDELOG_DB_STARTUP_RETRY_SECONDS`
 
 To add a migration:
 
@@ -294,6 +300,21 @@ Watch it live:
 
 ```powershell
 Get-Content $env:USERPROFILE\.claudelog\hook-claude-debug.log -Wait -Tail 20
+```
+
+### Web app startup
+
+The published web app writes startup logs to:
+
+```text
+C:\Apps\ClaudeLog.Web\startup.log
+C:\Apps\ClaudeLog.Web\startup-error.log
+```
+
+The diagnostics fallback log is also written under the published app directory:
+
+```text
+C:\Apps\ClaudeLog.Web\Log_YYYYMMDD.txt
 ```
 
 Pause the hook for debugger attach:
