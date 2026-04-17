@@ -11,7 +11,7 @@ function Pause-BeforeExit {
 
 $appRoot = "C:\Apps\ClaudeLog.Web"
 $appExe = Join-Path $appRoot "ClaudeLog.Web.exe"
-$appUrl = "http://localhost:15088"
+$appUrl = "http://0.0.0.0:15088"
 $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $taskDescription = "Starts ClaudeLog.Web at user logon from C:\Apps\ClaudeLog.Web."
 $launcherScript = Join-Path $appRoot "Start-ClaudeLog.Web.ps1"

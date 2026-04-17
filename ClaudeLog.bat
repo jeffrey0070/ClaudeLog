@@ -62,7 +62,7 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 set ASPNETCORE_ENVIRONMENT=Production
-set ASPNETCORE_URLS=http://localhost:%WEB_PORT%
+set ASPNETCORE_URLS=http://0.0.0.0:%WEB_PORT%
 %APP_EXE%
 
 :End

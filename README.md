@@ -93,7 +93,7 @@ The script creates a task named `ClaudeLog.Web` with these settings:
 - trigger at logon
 - action launches `C:\Apps\ClaudeLog.Web\ClaudeLog.Web.exe`
 - `ASPNETCORE_ENVIRONMENT=Production`
-- `ASPNETCORE_URLS=http://localhost:15088`
+- `ASPNETCORE_URLS=http://0.0.0.0:15088`
 
 Start it immediately:
 
@@ -239,8 +239,8 @@ Notes:
 
 ### Web URLs
 
-- Production: `http://localhost:15088`
-- Development: `http://localhost:15089`
+- Production: `http://0.0.0.0:15088`
+- Development: `http://0.0.0.0:15089`
 
 Production URL comes from:
 
@@ -345,7 +345,7 @@ dotnet publish ClaudeLog.Hook.Gemini\ClaudeLog.Hook.Gemini.csproj -c Release -o 
 ## Build and Development
 
 - Restore/build: `dotnet restore` then `dotnet build ClaudeLog.sln -c Release`
-- Run web in development: `dotnet run --project ClaudeLog.Web --urls http://localhost:15089`
+- Run web in development: `dotnet run --project ClaudeLog.Web --urls http://0.0.0.0:15089`
 - Verify endpoints:
   - `/api/sessions`
   - `/api/entries`

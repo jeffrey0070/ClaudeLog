@@ -9,7 +9,7 @@ var startupLogPath = Path.Combine(AppContext.BaseDirectory, "startup.log");
 var urls = config["Kestrel:Endpoints:Http:Url"]
     ?? config["urls"]
     ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS")
-    ?? (builder.Environment.IsDevelopment() ? "http://localhost:15089" : "http://localhost:15088");
+    ?? (builder.Environment.IsDevelopment() ? "http://0.0.0.0:15089" : "http://0.0.0.0:15088");
 
 builder.WebHost.UseUrls(urls);
 
