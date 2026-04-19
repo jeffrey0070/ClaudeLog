@@ -268,6 +268,37 @@ To add a migration:
 2. Rebuild or republish
 3. Start the web app
 
+### Core data export/import
+
+The web app exposes core data transfer endpoints for `Sessions` and `Conversations`:
+
+- `GET /api/export/core`
+- `POST /api/import/core`
+
+The export format is a versioned JSON file containing:
+
+- sessions
+- conversations nested under sessions
+- `CreatedAt`
+- `LastModifiedAt`
+- durable `ConversationId` GUID values
+
+Import behavior is merge-based:
+
+- missing rows are inserted
+- existing rows are updated only when the imported `LastModifiedAt` is newer
+- older or equal rows are skipped
+- soft-deleted sessions and conversations are not exported
+- imports skip updates when the existing target row is already soft-deleted
+
+The main UI also exposes `Export` and `Import` actions from the conversation browser page.
+
+Deployment note:
+
+- schema version `1.1.2` replaces `dbo.Conversations.Id` with `ConversationId UNIQUEIDENTIFIER`
+- the migration also remaps diagnostics from `ErrorLogs.EntryId` to `ErrorLogs.ConversationId`
+- take a database backup before applying this migration to an existing database
+
 ## Permissions
 
 - `ClaudeLog.update-and-run.bat`

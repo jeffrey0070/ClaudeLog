@@ -24,7 +24,7 @@ public class DiagnosticsRepository
     /// <param name="detail">Detailed information such as stack trace (optional)</param>
     /// <param name="path">File path related to the error (optional)</param>
     /// <param name="sessionId">Associated session ID (optional)</param>
-    /// <param name="entryId">Associated entry ID (optional)</param>
+    /// <param name="conversationId">Associated conversation ID (optional)</param>
     /// <param name="createdAt">Timestamp of the error. Defaults to current time if null.</param>
     /// <param name="logLevel">Severity level of the log entry. Defaults to Error.</param>
     /// <returns>The ID of the logged error entry, or 0 if logging failed</returns>
@@ -34,7 +34,7 @@ public class DiagnosticsRepository
         string? detail = null,
         string? path = null,
         string? sessionId = null,
-        long? entryId = null,
+        Guid? conversationId = null,
         DateTime? createdAt = null,
         LogLevel logLevel = LogLevel.Error)
     {
@@ -62,9 +62,9 @@ public class DiagnosticsRepository
             await conn.OpenAsync();
 
             var query = @"
-                INSERT INTO dbo.ErrorLogs (Source, Message, Detail, Path, SessionId, EntryId, CreatedAt, LogLevel)
+                INSERT INTO dbo.ErrorLogs (Source, Message, Detail, Path, SessionId, ConversationId, CreatedAt, LogLevel)
                 OUTPUT INSERTED.Id
-                VALUES (@Source, @Message, @Detail, @Path, @SessionId, @EntryId, @CreatedAt, @LogLevel)";
+                VALUES (@Source, @Message, @Detail, @Path, @SessionId, @ConversationId, @CreatedAt, @LogLevel)";
 
             using var cmd = new SqlCommand(query, conn);
             cmd.Parameters.AddWithValue("@Source", normalizedSource);
@@ -72,7 +72,7 @@ public class DiagnosticsRepository
             cmd.Parameters.AddWithValue("@Detail", (object?)detail ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Path", (object?)path ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@SessionId", (object?)sessionId ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@EntryId", entryId.HasValue ? (object)entryId.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@ConversationId", conversationId.HasValue ? (object)conversationId.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@CreatedAt", created);
             cmd.Parameters.AddWithValue("@LogLevel", (int)logLevel);
 
@@ -87,7 +87,7 @@ public class DiagnosticsRepository
         catch (Exception ex)
         {
             // Fallback: write to local daily log file in the app folder. Swallow all exceptions here.
-            SafeLogToFile(source, message, detail, path, sessionId, entryId, createdAt ?? DateTime.Now, logLevel, ex);
+            SafeLogToFile(source, message, detail, path, sessionId, conversationId, createdAt ?? DateTime.Now, logLevel, ex);
             return 0;
         }
     }
@@ -98,7 +98,7 @@ public class DiagnosticsRepository
         string? detail,
         string? path,
         string? sessionId,
-        long? entryId,
+        Guid? conversationId,
         DateTime createdAt,
         LogLevel level,
         Exception exception)
@@ -125,7 +125,7 @@ public class DiagnosticsRepository
             if (!string.IsNullOrWhiteSpace(detail)) writer.WriteLine($"Detail: {detail}");
             if (!string.IsNullOrWhiteSpace(path)) writer.WriteLine($"Path: {path}");
             if (!string.IsNullOrWhiteSpace(sessionId)) writer.WriteLine($"SessionId: {sessionId}");
-            if (entryId.HasValue) writer.WriteLine($"EntryId: {entryId}");
+            if (conversationId.HasValue) writer.WriteLine($"ConversationId: {conversationId}");
             writer.WriteLine($"CreatedAt: {createdAt:O}");
             writer.WriteLine("DB logging failed with exception:");
             writer.WriteLine(exception.ToString());
@@ -137,19 +137,19 @@ public class DiagnosticsRepository
         }
     }
 
-    public async Task<List<(long Id, string Source, string Message, string? Detail, string? Path, string? SessionId, long? EntryId, DateTime CreatedAt, LogLevel LogLevel)>> GetLogsAsync(
+    public async Task<List<(long Id, string Source, string Message, string? Detail, string? Path, string? SessionId, Guid? ConversationId, DateTime CreatedAt, LogLevel LogLevel)>> GetLogsAsync(
         LogLevel? minLevel = null,
         string? source = null,
         int page = 1,
         int pageSize = 100)
     {
-        var list = new List<(long, string, string, string?, string?, string?, long?, DateTime, LogLevel)>();
+        var list = new List<(long, string, string, string?, string?, string?, Guid?, DateTime, LogLevel)>();
 
         using var conn = _dbContext.CreateConnection();
         await conn.OpenAsync();
 
         var query = @"
-            SELECT Id, Source, Message, Detail, Path, SessionId, EntryId, CreatedAt, LogLevel
+            SELECT Id, Source, Message, Detail, Path, SessionId, ConversationId, CreatedAt, LogLevel
             FROM dbo.ErrorLogs
             WHERE (@MinLevel IS NULL OR LogLevel >= @MinLevel)
               AND (@Source IS NULL OR @Source = '' OR Source = @Source)
@@ -172,7 +172,7 @@ public class DiagnosticsRepository
                 reader.IsDBNull(3) ? null : reader.GetString(3),
                 reader.IsDBNull(4) ? null : reader.GetString(4),
                 reader.IsDBNull(5) ? null : reader.GetString(5),
-                reader.IsDBNull(6) ? null : reader.GetInt64(6),
+                reader.IsDBNull(6) ? null : reader.GetGuid(6),
                 reader.GetDateTime(7),
                 (LogLevel)reader.GetInt32(8)
             ));

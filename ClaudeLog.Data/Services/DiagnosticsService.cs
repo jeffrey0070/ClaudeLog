@@ -30,7 +30,7 @@ public class DiagnosticsService
     /// Respects DebugEnabled setting - Debug and Trace messages are only written when DebugEnabled = true.
     /// </summary>
     /// <returns>The ID of the diagnostics entry, or null if the repository returns null or message was filtered</returns>
-    public async Task<long?> WriteDiagnosticsAsync(string source, string message, LogLevel level, string? detail = null, string? path = null, string? sessionId = null, long? entryId = null, DateTime? createdAt = null)
+    public async Task<long?> WriteDiagnosticsAsync(string source, string message, LogLevel level, string? detail = null, string? path = null, string? sessionId = null, Guid? conversationId = null, DateTime? createdAt = null)
     {
         // Filter Debug and Trace messages when DebugEnabled is false
         if (!DebugEnabled && (level == LogLevel.Debug || level == LogLevel.Trace))
@@ -38,10 +38,10 @@ public class DiagnosticsService
             return null;
         }
 
-        return await _errorRepository.LogErrorAsync(source, message, detail, path, sessionId, entryId, createdAt, level);
+        return await _errorRepository.LogErrorAsync(source, message, detail, path, sessionId, conversationId, createdAt, level);
     }
 
-    public async Task<List<(long Id, string Source, string Message, string? Detail, string? Path, string? SessionId, long? EntryId, DateTime CreatedAt, LogLevel LogLevel)>> GetLogsAsync(
+    public async Task<List<(long Id, string Source, string Message, string? Detail, string? Path, string? SessionId, Guid? ConversationId, DateTime CreatedAt, LogLevel LogLevel)>> GetLogsAsync(
         LogLevel? minLevel = null,
         string? source = null,
         int page = 1,

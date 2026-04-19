@@ -76,7 +76,7 @@ public class SessionRepository
         await conn.OpenAsync();
 
         var query = @"
-            SELECT s.SessionId, s.Tool, s.CreatedAt, COUNT(c.Id) as Count, s.IsDeleted
+            SELECT s.SessionId, s.Tool, s.CreatedAt, COUNT(c.ConversationId) as Count, s.IsDeleted
             FROM dbo.Sessions s
             LEFT JOIN dbo.Conversations c ON s.SessionId = c.SessionId
             WHERE s.CreatedAt >= DATEADD(DAY, -@Days, SYSDATETIME())

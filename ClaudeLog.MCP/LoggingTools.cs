@@ -49,7 +49,7 @@ public static class LoggingTools
     /// <param name="response">The assistant's response</param>
     /// <param name="conversationService">Injected conversation service</param>
     /// <param name="diagnosticsService">Injected diagnostics service</param>
-    /// <returns>Success status and entry ID if successful</returns>
+    /// <returns>Success status and conversation ID if successful</returns>
     [McpServerTool]
     [Description("Writes a conversation entry (question and response) to ClaudeLog database. Call CreateSession first and reuse its sessionId for this tool.")]
     public static async Task<string> LogConversation(
@@ -68,12 +68,12 @@ public static class LoggingTools
         // Write the conversation entry (assumes session was created via CreateSession)
         try
         {
-            var entryId = await conversationService.WriteEntryAsync(
+            var conversationId = await conversationService.WriteEntryAsync(
                 sessionId,
                 question.Trim(),
                 response.Trim());
 
-            return JsonSerializer.Serialize(new { success = true, entryId });
+            return JsonSerializer.Serialize(new { success = true, conversationId });
         }
         catch (Exception ex)
         {

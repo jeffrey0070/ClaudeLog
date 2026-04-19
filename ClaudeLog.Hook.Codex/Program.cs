@@ -165,9 +165,9 @@ class Program
         Console.WriteLine("Press Ctrl+C to stop.");
         Console.WriteLine();
 
-        fsw.Created += (s, e) => { lock (pending) pending[e.FullPath] = DateTime.UtcNow; };
-        fsw.Changed += (s, e) => { lock (pending) pending[e.FullPath] = DateTime.UtcNow; };
-        fsw.Renamed += (s, e) => { lock (pending) pending[e.FullPath] = DateTime.UtcNow; };
+        fsw.Created += (s, e) => { lock (pending) pending[e.FullPath] = DateTime.Now; };
+        fsw.Changed += (s, e) => { lock (pending) pending[e.FullPath] = DateTime.Now; };
+        fsw.Renamed += (s, e) => { lock (pending) pending[e.FullPath] = DateTime.Now; };
         fsw.EnableRaisingEvents = true;
 
         // simple debounce loop
@@ -177,7 +177,7 @@ class Program
             List<string> toProcess;
             lock (pending)
             {
-                var now = DateTime.UtcNow;
+                var now = DateTime.Now;
                 toProcess = pending
                     .Where(kv => (now - kv.Value).TotalMilliseconds >= 250)
                     .Select(kv => kv.Key)
@@ -507,8 +507,8 @@ class Program
     {
         try
         {
-            var entryId = await _conversationService!.WriteEntryAsync(sessionId, question, response);
-            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Codex", $"Entry written successfully (ID: {entryId})", LogLevel.Debug);
+            var conversationId = await _conversationService!.WriteEntryAsync(sessionId, question, response);
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Codex", $"Conversation written successfully (ConversationId: {conversationId})", LogLevel.Debug, conversationId: conversationId);
         }
         catch (Exception ex)
         {

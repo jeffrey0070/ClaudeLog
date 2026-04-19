@@ -250,8 +250,8 @@ class Program
         try
         {
             await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", $"Writing entry for session: {sessionId}", LogLevel.Debug);
-            var entryId = await _conversationService!.WriteEntryAsync(sessionId, question, response);
-            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", $"Entry written successfully (ID: {entryId})", LogLevel.Info);
+            var conversationId = await _conversationService!.WriteEntryAsync(sessionId, question, response);
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Claude", $"Conversation written successfully (ConversationId: {conversationId})", LogLevel.Info, conversationId: conversationId);
         }
         catch (Exception ex)
         {

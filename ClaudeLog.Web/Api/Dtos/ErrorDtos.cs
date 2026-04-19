@@ -6,7 +6,7 @@ public record LogErrorRequest(
     string? Detail = null,
     string? Path = null,
     string? SessionId = null,
-    long? EntryId = null,
+    Guid? ConversationId = null,
     DateTime? CreatedAt = null
 );
 
@@ -19,6 +19,6 @@ public record ErrorLogDto(
     string? Detail,
     string? Path,
     string? SessionId,
-    long? EntryId,
+    Guid? ConversationId,
     DateTime CreatedAt,
     ClaudeLog.Data.Models.LogLevel LogLevel);

@@ -54,7 +54,7 @@
                     <th>Source</th>
                     <th>Message</th>
                     <th>Session</th>
-                    <th>Entry</th>
+                    <th>Conversation</th>
                     <th>Path</th>
                 </tr>
             </thead>
@@ -109,7 +109,7 @@
                 <td>${r.source}</td>
                 <td><pre class="m-0" style="white-space: pre-wrap">${escapeHtml(r.message)}${r.detail ? '\n' + escapeHtml(r.detail) : ''}</pre></td>
                 <td>${r.sessionId ?? ''}</td>
-                <td>${r.entryId ?? ''}</td>
+                <td>${r.conversationId ?? ''}</td>
                 <td>${r.path ?? ''}</td>
             </tr>
         `).join('');
