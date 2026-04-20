@@ -15,6 +15,9 @@
             </a>
             <input type="text" id="searchInput" class="form-control" placeholder="Search conversations..." style="flex: 1;" />
             <button id="clearSearch" class="btn btn-secondary btn-sm">Clear</button>
+            <a href="/api/export/core" class="btn btn-outline-secondary btn-sm">Export</a>
+            <input type="file" id="importCoreFile" accept=".json,application/json" class="d-none" />
+            <button id="importCoreButton" class="btn btn-outline-secondary btn-sm">Import</button>
             <a href="/Logs" class="btn btn-outline-secondary btn-sm">Logs</a>
         </div>
     </div>
@@ -57,6 +60,20 @@
                 <div class="text-center text-muted p-5">
                     <h4>Select a conversation to view details</h4>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="importSummaryModal" tabindex="-1" aria-labelledby="importSummaryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importSummaryModalLabel">Import Summary</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="importSummaryContent" class="mb-0" style="white-space: pre-wrap;"></pre>
             </div>
         </div>
     </div>

@@ -49,6 +49,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddSingleton(new ClaudeLog.Data.DbContext());
 builder.Services.AddScoped<ClaudeLog.Data.Services.ConversationService>();
 builder.Services.AddScoped<ClaudeLog.Data.Services.DiagnosticsService>();
+builder.Services.AddScoped<ClaudeLog.Data.Services.CoreDataTransferService>();
 
 // Register web services
 builder.Services.AddSingleton<MarkdownRenderer>();
@@ -71,7 +72,7 @@ if (int.TryParse(Environment.GetEnvironmentVariable("CLAUDELOG_DB_STARTUP_RETRY_
     retryDelaySeconds = configuredRetryDelaySeconds;
 }
 
-var startupDeadline = DateTime.UtcNow.AddMinutes(maxWaitMinutes);
+var startupDeadline = DateTime.Now.AddMinutes(maxWaitMinutes);
 var attempt = 0;
 var dbInitialized = false;
 
@@ -86,7 +87,7 @@ while (!dbInitialized)
         break;
     }
 
-    if (DateTime.UtcNow >= startupDeadline)
+    if (DateTime.Now >= startupDeadline)
     {
         break;
     }
@@ -150,5 +151,6 @@ app.MapRazorPages().WithStaticAssets();
 app.MapSessionsEndpoints();
 app.MapEntriesEndpoints();
 app.MapErrorsEndpoints();
+app.MapCoreDataEndpoints();
 
 app.Run();

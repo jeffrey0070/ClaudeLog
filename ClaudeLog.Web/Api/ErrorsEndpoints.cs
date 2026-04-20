@@ -25,7 +25,7 @@ public static class ErrorsEndpoints
                 request.Detail,
                 request.Path,
                 request.SessionId,
-                request.EntryId,
+                request.ConversationId,
                 request.CreatedAt);
 
             if (id.HasValue)
@@ -51,7 +51,7 @@ public static class ErrorsEndpoints
     {
         var items = await diagnosticsService.GetLogsAsync(minLevel, source, page, pageSize);
         var dtos = items.Select(x => new ErrorLogDto(
-            x.Id, x.Source, x.Message, x.Detail, x.Path, x.SessionId, x.EntryId, x.CreatedAt, x.LogLevel));
+            x.Id, x.Source, x.Message, x.Detail, x.Path, x.SessionId, x.ConversationId, x.CreatedAt, x.LogLevel));
         return Results.Ok(dtos);
     }
 }

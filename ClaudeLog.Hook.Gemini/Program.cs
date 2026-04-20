@@ -177,8 +177,8 @@ class Program
             await _conversationService!.EnsureSessionAsync(input.SessionId!, "GeminiCLI");
 
             // Write the conversation entry
-            var entryId = await _conversationService!.WriteEntryAsync(input.SessionId!, question, response);
-            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Gemini", $"Entry written successfully (ID: {entryId})", LogLevel.Info);
+            var conversationId = await _conversationService!.WriteEntryAsync(input.SessionId!, question, response);
+            await _diagnosticsService!.WriteDiagnosticsAsync("Hook.Gemini", $"Conversation written successfully (ConversationId: {conversationId})", LogLevel.Info, conversationId: conversationId);
 
             CheckpointStore.Update(checkpointKey, new CheckpointRecord
             {

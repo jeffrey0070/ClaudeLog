@@ -6,7 +6,7 @@ public record CreateEntryRequest(
     string Response
 );
 
-public record CreateEntryResponse(long Id);
+public record CreateEntryResponse(Guid ConversationId);
 
 public record UpdateTitleRequest(string Title);
 
@@ -21,7 +21,7 @@ public record UpdateResponseRequest(string Response);
 public record UpdateSessionIdRequest(string SessionId);
 
 public record EntryListDto(
-    long Id,
+    Guid ConversationId,
     string Title,
     DateTime CreatedAt,
     string SessionId,
@@ -33,7 +33,7 @@ public record EntryListDto(
 );
 
 public record EntryDetailDto(
-    long Id,
+    Guid ConversationId,
     string Title,
     string Question,
     string QuestionHtml,

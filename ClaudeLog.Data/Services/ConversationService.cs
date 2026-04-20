@@ -65,7 +65,7 @@ public class ConversationService
     /// </summary>
     /// <returns>The ID of the newly created entry</returns>
     /// <exception cref="ArgumentException">Thrown if sessionId, question, or response is null/empty</exception>
-    public async Task<long> WriteEntryAsync(
+    public async Task<Guid> WriteEntryAsync(
         string sessionId,
         string question,
         string response)
@@ -84,54 +84,54 @@ public class ConversationService
     /// <summary>
     /// Gets a single entry by ID
     /// </summary>
-    public async Task<EntryDetail?> GetEntryByIdAsync(long id)
+    public async Task<EntryDetail?> GetEntryByIdAsync(Guid conversationId)
     {
-        return await _entryRepository.GetEntryByIdAsync(id);
+        return await _entryRepository.GetEntryByIdAsync(conversationId);
     }
 
     /// <summary>
     /// Updates an entry's title
     /// </summary>
-    public async Task UpdateTitleAsync(long id, string title)
+    public async Task UpdateTitleAsync(Guid conversationId, string title)
     {
-        await _entryRepository.UpdateTitleAsync(id, title);
+        await _entryRepository.UpdateTitleAsync(conversationId, title);
     }
 
     /// <summary>
     /// Updates an entry's favorite status
     /// </summary>
-    public async Task UpdateFavoriteAsync(long id, bool isFavorite)
+    public async Task UpdateFavoriteAsync(Guid conversationId, bool isFavorite)
     {
-        await _entryRepository.UpdateFavoriteAsync(id, isFavorite);
+        await _entryRepository.UpdateFavoriteAsync(conversationId, isFavorite);
     }
 
     /// <summary>
     /// Updates an entry's deleted status (soft delete)
     /// </summary>
-    public async Task UpdateDeletedAsync(long id, bool isDeleted)
+    public async Task UpdateDeletedAsync(Guid conversationId, bool isDeleted)
     {
-        await _entryRepository.UpdateDeletedAsync(id, isDeleted);
+        await _entryRepository.UpdateDeletedAsync(conversationId, isDeleted);
     }
 
     /// <summary>
     /// Updates an entry's question text
     /// </summary>
-    public async Task UpdateQuestionAsync(long id, string question)
+    public async Task UpdateQuestionAsync(Guid conversationId, string question)
     {
-        await _entryRepository.UpdateQuestionAsync(id, question);
+        await _entryRepository.UpdateQuestionAsync(conversationId, question);
     }
 
     /// <summary>
     /// Updates an entry's response text
     /// </summary>
-    public async Task UpdateResponseAsync(long id, string response)
+    public async Task UpdateResponseAsync(Guid conversationId, string response)
     {
-        await _entryRepository.UpdateResponseAsync(id, response);
+        await _entryRepository.UpdateResponseAsync(conversationId, response);
     }
 
-    public async Task UpdateSessionIdAsync(long id, string sessionId)
+    public async Task UpdateSessionIdAsync(Guid conversationId, string sessionId)
     {
-        await _entryRepository.UpdateSessionIdAsync(id, sessionId);
+        await _entryRepository.UpdateSessionIdAsync(conversationId, sessionId);
     }
 
     #endregion

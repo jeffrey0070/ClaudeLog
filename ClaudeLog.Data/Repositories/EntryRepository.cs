@@ -24,7 +24,7 @@ public class EntryRepository
     /// <param name="response">The assistant's response (required)</param>
     /// <returns>The ID of the newly created entry</returns>
     /// <exception cref="ArgumentException">Thrown if any required parameter is null/empty</exception>
-    public async Task<long> CreateAsync(string sessionId, string question, string response)
+    public async Task<Guid> CreateAsync(string sessionId, string question, string response)
     {
         // Validate required parameters
         if (string.IsNullOrWhiteSpace(sessionId))
@@ -43,29 +43,33 @@ public class EntryRepository
         var title = normalizedQuestion.Length > 100
             ? normalizedQuestion[..97] + "..."
             : normalizedQuestion;
+        var conversationId = Guid.NewGuid();
+        var createdAt = DateTime.Now;
 
         using var conn = _dbContext.CreateConnection();
         await conn.OpenAsync();
 
         var query = @"
-            INSERT INTO dbo.Conversations (SessionId, Title, Question, Response, CreatedAt)
-            OUTPUT INSERTED.Id
-            VALUES (@SessionId, @Title, @Question, @Response, @CreatedAt)";
+            INSERT INTO dbo.Conversations (ConversationId, SessionId, Title, Question, Response, CreatedAt, LastModifiedAt)
+            OUTPUT INSERTED.ConversationId
+            VALUES (@ConversationId, @SessionId, @Title, @Question, @Response, @CreatedAt, @LastModifiedAt)";
 
         using var cmd = new SqlCommand(query, conn);
+        cmd.Parameters.AddWithValue("@ConversationId", conversationId);
         cmd.Parameters.AddWithValue("@SessionId", normalizedSessionId);
         cmd.Parameters.AddWithValue("@Title", title);
         cmd.Parameters.AddWithValue("@Question", normalizedQuestion);
         cmd.Parameters.AddWithValue("@Response", normalizedResponse);
-        cmd.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
+        cmd.Parameters.AddWithValue("@CreatedAt", createdAt);
+        cmd.Parameters.AddWithValue("@LastModifiedAt", createdAt);
 
         var result = await cmd.ExecuteScalarAsync();
 
-        // ExecuteScalar should never return null for OUTPUT INSERTED.Id, but be defensive
+        // ExecuteScalar should never return null for OUTPUT INSERTED.ConversationId, but be defensive
         if (result == null || result == DBNull.Value)
-            throw new InvalidOperationException("Failed to retrieve the inserted entry ID");
+            throw new InvalidOperationException("Failed to retrieve the inserted conversation ID");
 
-        return (long)result;
+        return (Guid)result;
     }
 
     /// <summary>
@@ -91,7 +95,7 @@ public class EntryRepository
         await conn.OpenAsync();
 
         var query = @"
-            SELECT c.Id, c.Title, c.CreatedAt, c.SessionId, s.CreatedAt as SessionCreatedAt, s.Tool,
+            SELECT c.ConversationId, c.Title, c.CreatedAt, c.SessionId, s.CreatedAt as SessionCreatedAt, s.Tool,
                    c.IsFavorite, c.IsDeleted, s.IsDeleted as SessionIsDeleted
             FROM dbo.Conversations c
             INNER JOIN dbo.Sessions s ON c.SessionId = s.SessionId
@@ -116,7 +120,7 @@ public class EntryRepository
         while (await reader.ReadAsync())
         {
             entries.Add(new EntryListItem(
-                reader.GetInt64(0),       // Id - never null (PK)
+                reader.GetGuid(0),        // ConversationId - never null (PK)
                 reader.GetString(1),      // Title - never null (NOT NULL)
                 reader.GetDateTime(2),    // CreatedAt - never null (NOT NULL)
                 reader.GetString(3),      // SessionId - never null (FK to PK)
@@ -136,27 +140,27 @@ public class EntryRepository
     /// </summary>
     /// <param name="id">The entry ID to retrieve</param>
     /// <returns>The entry details, or null if not found</returns>
-    public async Task<EntryDetail?> GetEntryByIdAsync(long id)
+    public async Task<EntryDetail?> GetEntryByIdAsync(Guid conversationId)
     {
         using var conn = _dbContext.CreateConnection();
         await conn.OpenAsync();
 
         var query = @"
-            SELECT c.Id, c.Title, c.Question, c.Response, c.CreatedAt,
+            SELECT c.ConversationId, c.Title, c.Question, c.Response, c.CreatedAt,
                    c.SessionId, s.Tool, s.CreatedAt as SessionCreatedAt,
                    c.IsFavorite, c.IsDeleted
             FROM dbo.Conversations c
             INNER JOIN dbo.Sessions s ON c.SessionId = s.SessionId
-            WHERE c.Id = @Id";
+            WHERE c.ConversationId = @ConversationId";
 
         using var cmd = new SqlCommand(query, conn);
-        cmd.Parameters.AddWithValue("@Id", id);
+        cmd.Parameters.AddWithValue("@ConversationId", conversationId);
 
         using var reader = await cmd.ExecuteReaderAsync();
         if (await reader.ReadAsync())
         {
             return new EntryDetail(
-                reader.GetInt64(0),       // Id - never null (PK)
+                reader.GetGuid(0),        // ConversationId - never null (PK)
                 reader.GetString(1),      // Title - never null (NOT NULL)
                 reader.GetString(2),      // Question - never null (NOT NULL)
                 reader.GetString(3),      // Response - never null (NOT NULL)
@@ -177,7 +181,7 @@ public class EntryRepository
     /// </summary>
     /// <param name="id">The entry ID to update</param>
     /// <param name="title">The new title (required)</param>
-    public async Task UpdateTitleAsync(long id, string title)
+    public async Task UpdateTitleAsync(Guid conversationId, string title)
     {
         if (string.IsNullOrWhiteSpace(title))
             throw new ArgumentException("Title cannot be null or empty", nameof(title));
@@ -188,10 +192,10 @@ public class EntryRepository
         var query = @"
             UPDATE dbo.Conversations
             SET Title = @Title
-            WHERE Id = @Id";
+            WHERE ConversationId = @ConversationId";
 
         using var cmd = new SqlCommand(query, conn);
-        cmd.Parameters.AddWithValue("@Id", id);
+        cmd.Parameters.AddWithValue("@ConversationId", conversationId);
         cmd.Parameters.AddWithValue("@Title", title.Trim());
 
         await cmd.ExecuteNonQueryAsync();
@@ -202,7 +206,7 @@ public class EntryRepository
     /// </summary>
     /// <param name="id">The entry ID to update</param>
     /// <param name="isFavorite">True to mark as favorite, false to unmark</param>
-    public async Task UpdateSessionIdAsync(long id, string sessionId)
+    public async Task UpdateSessionIdAsync(Guid conversationId, string sessionId)
     {
         if (string.IsNullOrWhiteSpace(sessionId))
             throw new ArgumentException("SessionId cannot be null or empty", nameof(sessionId));
@@ -213,16 +217,16 @@ public class EntryRepository
         var query = @"
             UPDATE dbo.Conversations
             SET SessionId = @SessionId
-            WHERE Id = @Id";
+            WHERE ConversationId = @ConversationId";
 
         using var cmd = new SqlCommand(query, conn);
-        cmd.Parameters.AddWithValue("@Id", id);
+        cmd.Parameters.AddWithValue("@ConversationId", conversationId);
         cmd.Parameters.AddWithValue("@SessionId", sessionId.Trim());
 
         await cmd.ExecuteNonQueryAsync();
     }
 
-    public async Task UpdateFavoriteAsync(long id, bool isFavorite)
+    public async Task UpdateFavoriteAsync(Guid conversationId, bool isFavorite)
     {
         using var conn = _dbContext.CreateConnection();
         await conn.OpenAsync();
@@ -230,10 +234,10 @@ public class EntryRepository
         var query = @"
             UPDATE dbo.Conversations
             SET IsFavorite = @IsFavorite
-            WHERE Id = @Id";
+            WHERE ConversationId = @ConversationId";
 
         using var cmd = new SqlCommand(query, conn);
-        cmd.Parameters.AddWithValue("@Id", id);
+        cmd.Parameters.AddWithValue("@ConversationId", conversationId);
         cmd.Parameters.AddWithValue("@IsFavorite", isFavorite ? 1 : 0);
 
         await cmd.ExecuteNonQueryAsync();
@@ -244,7 +248,7 @@ public class EntryRepository
     /// </summary>
     /// <param name="id">The entry ID to update</param>
     /// <param name="isDeleted">True to soft-delete, false to restore</param>
-    public async Task UpdateDeletedAsync(long id, bool isDeleted)
+    public async Task UpdateDeletedAsync(Guid conversationId, bool isDeleted)
     {
         using var conn = _dbContext.CreateConnection();
         await conn.OpenAsync();
@@ -252,10 +256,10 @@ public class EntryRepository
         var query = @"
             UPDATE dbo.Conversations
             SET IsDeleted = @IsDeleted
-            WHERE Id = @Id";
+            WHERE ConversationId = @ConversationId";
 
         using var cmd = new SqlCommand(query, conn);
-        cmd.Parameters.AddWithValue("@Id", id);
+        cmd.Parameters.AddWithValue("@ConversationId", conversationId);
         cmd.Parameters.AddWithValue("@IsDeleted", isDeleted ? 1 : 0);
 
         await cmd.ExecuteNonQueryAsync();
@@ -266,7 +270,7 @@ public class EntryRepository
     /// </summary>
     /// <param name="id">The entry ID to update</param>
     /// <param name="question">The new question text (required)</param>
-    public async Task UpdateQuestionAsync(long id, string question)
+    public async Task UpdateQuestionAsync(Guid conversationId, string question)
     {
         if (string.IsNullOrWhiteSpace(question))
             throw new ArgumentException("Question cannot be null or empty", nameof(question));
@@ -277,10 +281,10 @@ public class EntryRepository
         var query = @"
             UPDATE dbo.Conversations
             SET Question = @Question
-            WHERE Id = @Id";
+            WHERE ConversationId = @ConversationId";
 
         using var cmd = new SqlCommand(query, conn);
-        cmd.Parameters.AddWithValue("@Id", id);
+        cmd.Parameters.AddWithValue("@ConversationId", conversationId);
         cmd.Parameters.AddWithValue("@Question", question.Trim());
 
         await cmd.ExecuteNonQueryAsync();
@@ -291,7 +295,7 @@ public class EntryRepository
     /// </summary>
     /// <param name="id">The entry ID to update</param>
     /// <param name="response">The new response text (required)</param>
-    public async Task UpdateResponseAsync(long id, string response)
+    public async Task UpdateResponseAsync(Guid conversationId, string response)
     {
         if (string.IsNullOrWhiteSpace(response))
             throw new ArgumentException("Response cannot be null or empty", nameof(response));
@@ -302,10 +306,10 @@ public class EntryRepository
         var query = @"
             UPDATE dbo.Conversations
             SET Response = @Response
-            WHERE Id = @Id";
+            WHERE ConversationId = @ConversationId";
 
         using var cmd = new SqlCommand(query, conn);
-        cmd.Parameters.AddWithValue("@Id", id);
+        cmd.Parameters.AddWithValue("@ConversationId", conversationId);
         cmd.Parameters.AddWithValue("@Response", response.Trim());
 
         await cmd.ExecuteNonQueryAsync();

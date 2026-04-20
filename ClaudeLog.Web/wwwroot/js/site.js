@@ -5,7 +5,7 @@
 let currentPage = 1;
 const pageSize = 200;
 let currentSearch = '';
-let selectedEntryId = null;
+let selectedConversationId = null;
 let allEntries = [];
 let includeDeleted = false;
 let showFavoritesOnly = false;
@@ -207,7 +207,11 @@ function renderEntriesList(entries) {
     const shouldIncludeEmptySessions = !currentSearch.trim() && !showFavoritesOnly;
     if (shouldIncludeEmptySessions) {
         cachedSessions.forEach(session => {
-            if (!sessions[session.sessionId]) {
+            // Only synthesize empty-session placeholders for sessions that truly
+            // have zero conversations. Otherwise an older paged-out session looks
+            // empty even though its conversations simply were not returned on the
+            // current /api/entries page.
+            if (!sessions[session.sessionId] && session.count === 0) {
                 sessions[session.sessionId] = {
                     tool: session.tool,
                     createdAt: session.createdAt,
@@ -281,23 +285,23 @@ function renderEntriesList(entries) {
                 const entryDate = new Date(entry.createdAt).toLocaleDateString();
                 const entryTime = new Date(entry.createdAt).toLocaleTimeString();
                 const entryDateTime = `${entryDate} ${entryTime}`;
-                const isSelected = entry.id === selectedEntryId;
+                const isSelected = entry.conversationId === selectedConversationId;
                 const deleteTitle = entry.isDeleted ? 'Restore' : 'Delete';
                 html += `
                     <div class="entry-item p-2 border-bottom ${isSelected ? 'selected' : ''} "
-                         data-entry-id="${entry.id}"
+                         data-conversation-id="${entry.conversationId}"
                          title="${entryDateTime}">
                         <div class="d-flex align-items-center gap-2">
                             <button class="btn btn-sm btn-link p-0 favorite-btn"
-                                    onclick="event.stopPropagation(); toggleFavoriteInline(${entry.id}, ${!entry.isFavorite})"
+                                    onclick="event.stopPropagation(); toggleFavoriteInline('${entry.conversationId}', ${!entry.isFavorite})"
                                     title="${entry.isFavorite ? 'Remove from favorites' : 'Add to favorites'}">
                                 ${entry.isFavorite ? '★' : '☆'}
                             </button>
-                            <div class="entry-title flex-grow-1" onclick="selectEntry(${entry.id})" style="cursor: pointer;">
+                            <div class="entry-title flex-grow-1" onclick="selectEntry('${entry.conversationId}')" style="cursor: pointer;">
                                 ${escapeHtml(entry.title)}
                             </div>
                             <button class="btn btn-sm btn-link p-0 delete-btn"
-                                    onclick="event.stopPropagation(); toggleDeletedInline(${entry.id}, ${!entry.isDeleted})"
+                                    onclick="event.stopPropagation(); toggleDeletedInline('${entry.conversationId}', ${!entry.isDeleted})"
                                     title="${deleteTitle}">
                                 ${entry.isDeleted ? '↩' : '🗑'}
                             </button>
@@ -318,13 +322,13 @@ function renderEntriesList(entries) {
 
 // Select and load entry detail
 async function selectEntry(id) {
-    selectedEntryId = id;
+    selectedConversationId = id;
 
     // Update selection highlight
     document.querySelectorAll('.entry-item').forEach(item => {
         item.classList.remove('selected');
     });
-    document.querySelector(`[data-entry-id="${id}"]`)?.classList.add('selected');
+    document.querySelector(`[data-conversation-id="${id}"]`)?.classList.add('selected');
 
     try {
         const response = await fetch(`/api/entries/${id}`);
@@ -359,7 +363,7 @@ function renderEntryDetail(entry) {
             <div class="mb-3 d-flex justify-content-between align-items-start">
                 <div style="flex: 1;">
                     <div class="d-flex align-items-center gap-2">
-                        <h4 id="entryTitle" class="mb-0" data-entry-id="${entry.id}">
+                        <h4 id="entryTitle" class="mb-0" data-conversation-id="${entry.conversationId}">
                             ${escapeHtml(title)}
                         </h4>
                         <button id="editTitleBtn" class="btn btn-sm btn-link p-0 text-muted" onclick="startEditTitle()" title="Edit title" style="font-size: 1rem;">
@@ -380,10 +384,10 @@ function renderEntryDetail(entry) {
                     </div>
                 </div>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-sm ${favoriteClass}" onclick="toggleFavorite(${entry.id}, ${!entry.isFavorite})" title="">
+                    <button class="btn btn-sm ${favoriteClass}" onclick="toggleFavorite('${entry.conversationId}', ${!entry.isFavorite})" title="">
                          Favorite
                     </button>
-                    <button class="btn btn-sm ${deleteClass}" onclick="toggleDeleted(${entry.id}, ${!entry.isDeleted})" title="">
+                    <button class="btn btn-sm ${deleteClass}" onclick="toggleDeleted('${entry.conversationId}', ${!entry.isDeleted})" title="">
                         ${deleteText}
                     </button>
                 </div>
@@ -407,7 +411,7 @@ function renderEntryDetail(entry) {
                         </button>
                     </div>
                 </div>
-                <div id="question" class="p-3 bg-light border rounded" data-entry-id="${entry.id}">
+                <div id="question" class="p-3 bg-light border rounded" data-conversation-id="${entry.conversationId}">
                     ${renderedQuestionHtml}
                 </div>
             </div>
@@ -433,7 +437,7 @@ function renderEntryDetail(entry) {
                         </button>
                     </div>
                 </div>
-                <div id="response" class="p-3 bg-light border rounded markdown-content" data-entry-id="${entry.id}">
+                <div id="response" class="p-3 bg-light border rounded markdown-content" data-conversation-id="${entry.conversationId}">
                     ${renderedResponseHtml}
                 </div>
             </div>
@@ -475,7 +479,7 @@ function renderMarkdown(text) {
 function startEditTitle() {
     const titleElement = document.getElementById('entryTitle');
     const currentTitle = currentDetailEntry?.title ?? titleElement.textContent.trim();
-    const entryId = String(currentDetailEntry?.id ?? titleElement.dataset.entryId);
+    const conversationId = String(currentDetailEntry?.conversationId ?? titleElement.dataset.conversationId);
 
     // Replace h4 with input
     const input = document.createElement('input');
@@ -486,7 +490,7 @@ function startEditTitle() {
     input.style.width = '100%';
 
     // Store entry ID on the input for later use
-    input.dataset.entryId = entryId;
+    input.dataset.conversationId = conversationId;
 
     titleElement.replaceWith(input);
     input.focus();
@@ -515,10 +519,10 @@ async function saveEditedTitle() {
     if (!input) return;
 
     const newTitle = input.value.trim();
-    const entryId = input.dataset.entryId;
+    const conversationId = input.dataset.conversationId;
 
     try {
-        const response = await fetch(`/api/entries/${entryId}/title`, {
+        const response = await fetch(`/api/entries/${conversationId}/title`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title: newTitle })
@@ -529,7 +533,7 @@ async function saveEditedTitle() {
             const h4 = document.createElement('h4');
             h4.id = 'entryTitle';
             h4.className = 'mb-0';
-            h4.dataset.entryId = entryId;
+            h4.dataset.conversationId = conversationId;
             h4.textContent = newTitle;
 
             input.replaceWith(h4);
@@ -543,7 +547,7 @@ async function saveEditedTitle() {
             document.getElementById('cancelTitleBtn').style.display = 'none';
 
             // Update in list
-            const listItem = document.querySelector(`[data-entry-id="${entryId}"] .entry-title`);
+            const listItem = document.querySelector(`[data-conversation-id="${conversationId}"] .entry-title`);
             if (listItem) {
                 listItem.textContent = newTitle;
             }
@@ -566,8 +570,8 @@ function cancelEditTitle() {
     const input = document.getElementById('entryTitleInput');
     if (!input) return;
 
-    const entryId = Number(input.dataset.entryId);
-    selectEntry(entryId);
+    const conversationId = input.dataset.conversationId;
+    selectEntry(conversationId);
 }
 
 /**
@@ -583,7 +587,7 @@ function startEditQuestion() {
     textarea.id = 'questionTextarea';
     textarea.className = 'form-control';
     textarea.rows = 10;
-    textarea.dataset.entryId = questionElement.dataset.entryId;
+    textarea.dataset.conversationId = questionElement.dataset.conversationId;
     textarea.dataset.originalValue = currentQuestion;
 
     questionElement.replaceWith(textarea);
@@ -603,7 +607,7 @@ async function saveEditedQuestion() {
     if (!textarea) return;
 
     const newQuestion = textarea.value.trim();
-    const entryId = textarea.dataset.entryId;
+    const conversationId = textarea.dataset.conversationId;
 
     if (!newQuestion) {
         showToast('Question cannot be empty');
@@ -611,14 +615,14 @@ async function saveEditedQuestion() {
     }
 
     try {
-        const response = await fetch(`/api/entries/${entryId}/question`, {
+        const response = await fetch(`/api/entries/${conversationId}/question`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ question: newQuestion })
         });
 
         if (response.ok) {
-            await selectEntry(entryId);
+            await selectEntry(conversationId);
 
             showToast('Question updated!');
         } else {
@@ -638,9 +642,9 @@ function cancelEditQuestion() {
     const textarea = document.getElementById('questionTextarea');
     if (!textarea) return;
 
-    const entryId = textarea.dataset.entryId;
+    const conversationId = textarea.dataset.conversationId;
 
-    selectEntry(entryId);
+    selectEntry(conversationId);
 }
 
 /**
@@ -656,7 +660,7 @@ function startEditResponse() {
     textarea.id = 'responseTextarea';
     textarea.className = 'form-control';
     textarea.rows = 15;
-    textarea.dataset.entryId = responseElement.dataset.entryId;
+    textarea.dataset.conversationId = responseElement.dataset.conversationId;
     textarea.dataset.originalValue = currentResponse;
 
     responseElement.replaceWith(textarea);
@@ -676,7 +680,7 @@ async function saveEditedResponse() {
     if (!textarea) return;
 
     const newResponse = textarea.value.trim();
-    const entryId = textarea.dataset.entryId;
+    const conversationId = textarea.dataset.conversationId;
 
     if (!newResponse) {
         showToast('Response cannot be empty');
@@ -684,14 +688,14 @@ async function saveEditedResponse() {
     }
 
     try {
-        const response = await fetch(`/api/entries/${entryId}/response`, {
+        const response = await fetch(`/api/entries/${conversationId}/response`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ response: newResponse })
         });
 
         if (response.ok) {
-            await selectEntry(entryId);
+            await selectEntry(conversationId);
 
             showToast('Response updated!');
         } else {
@@ -711,9 +715,9 @@ function cancelEditResponse() {
     const textarea = document.getElementById('responseTextarea');
     if (!textarea) return;
 
-    const entryId = textarea.dataset.entryId;
+    const conversationId = textarea.dataset.conversationId;
 
-    selectEntry(entryId);
+    selectEntry(conversationId);
 }
 
 /**
@@ -764,10 +768,10 @@ async function saveEditedSession() {
     if (!select) return;
 
     const newSessionId = select.value;
-    const entryId = currentDetailEntry?.id;
+    const conversationId = currentDetailEntry?.conversationId;
 
     try {
-        const response = await fetch(`/api/entries/${entryId}/session`, {
+        const response = await fetch(`/api/entries/${conversationId}/session`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sessionId: newSessionId })
@@ -775,7 +779,7 @@ async function saveEditedSession() {
 
         if (response.ok) {
             if (currentDetailEntry) currentDetailEntry.sessionId = newSessionId;
-            await selectEntry(entryId);
+            await selectEntry(conversationId);
             showToast('Session updated!');
             loadEntries(currentSearch, 1, false);
         } else {
@@ -794,7 +798,7 @@ async function saveEditedSession() {
 function cancelEditSession() {
     const select = document.getElementById('sessionSelect');
     if (!select) return;
-    selectEntry(currentDetailEntry?.id);
+    selectEntry(currentDetailEntry?.conversationId);
 }
 
 // Copy to clipboard
@@ -878,7 +882,7 @@ async function toggleFavoriteInline(id, isFavorite) {
             // Reload list to reflect changes
             loadEntries(currentSearch, 1, false);
             // If this entry is currently selected, refresh detail view
-            if (selectedEntryId === id) {
+            if (selectedConversationId === id) {
                 await selectEntry(id);
             }
         }
@@ -923,7 +927,7 @@ async function toggleDeletedInline(id, isDeleted) {
             // Reload list to reflect changes
             loadEntries(currentSearch, 1, false);
             // If this entry is currently selected, refresh detail view
-            if (selectedEntryId === id) {
+            if (selectedConversationId === id) {
                 await selectEntry(id);
             }
         }
@@ -964,6 +968,115 @@ async function logError(source, message, detail) {
     } catch (err) {
         console.error('Failed to log error:', err);
     }
+}
+
+async function importCoreData(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch('/api/import/core', {
+        method: 'POST',
+        body: formData
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Import failed');
+    }
+
+    return response.json();
+}
+
+function showImportSummaryModal(summary) {
+    const content = document.getElementById('importSummaryContent');
+    const lines = [
+        `Sessions inserted: ${summary.sessionsInserted ?? 0}`,
+        `Sessions updated: ${summary.sessionsUpdated ?? 0}`,
+        `Sessions skipped: ${summary.sessionsSkipped ?? 0}`,
+        `Conversations inserted: ${summary.conversationsInserted ?? 0}`,
+        `Conversations updated: ${summary.conversationsUpdated ?? 0}`,
+        `Conversations skipped: ${summary.conversationsSkipped ?? 0}`
+    ];
+
+    if (Array.isArray(summary.errors) && summary.errors.length > 0) {
+        lines.push('', 'Errors:');
+        summary.errors.forEach(error => lines.push(`- ${error}`));
+    }
+
+    content.textContent = lines.join('\n');
+
+    const modalElement = document.getElementById('importSummaryModal');
+    if (!modalElement) {
+        showToast('Import completed');
+        window.alert(lines.join('\n'));
+        return;
+    }
+
+    try {
+        if (window.bootstrap?.Modal) {
+            const modal = window.bootstrap.Modal.getOrCreateInstance(modalElement);
+            modal.show();
+            return;
+        }
+    } catch (error) {
+        console.error('Failed to open import summary modal:', error);
+    }
+
+    // Keep the import result visible even if Bootstrap's modal helper is
+    // unavailable or fails at runtime in this browser/session.
+    modalElement.classList.add('show');
+    modalElement.style.display = 'block';
+    modalElement.removeAttribute('aria-hidden');
+    modalElement.setAttribute('aria-modal', 'true');
+    document.body.classList.add('modal-open');
+
+    let backdrop = document.getElementById('importSummaryBackdrop');
+    if (!backdrop) {
+        backdrop = document.createElement('div');
+        backdrop.id = 'importSummaryBackdrop';
+        backdrop.className = 'modal-backdrop fade show';
+        document.body.appendChild(backdrop);
+    }
+}
+
+function showImportError(error) {
+    const message = error?.message?.trim()
+        ? error.message
+        : 'Import failed';
+
+    const modalElement = document.getElementById('importSummaryModal');
+    const content = document.getElementById('importSummaryContent');
+    if (modalElement && content) {
+        content.textContent = message;
+
+        try {
+            if (window.bootstrap?.Modal) {
+                const modal = window.bootstrap.Modal.getOrCreateInstance(modalElement);
+                modal.show();
+                return;
+            }
+        } catch (modalError) {
+            console.error('Failed to open import error modal:', modalError);
+        }
+    }
+
+    showToast('Import failed');
+    window.alert(message);
+}
+
+function hideImportSummaryModalFallback() {
+    const modalElement = document.getElementById('importSummaryModal');
+    if (!modalElement) {
+        return;
+    }
+
+    modalElement.classList.remove('show');
+    modalElement.style.display = 'none';
+    modalElement.setAttribute('aria-hidden', 'true');
+    modalElement.removeAttribute('aria-modal');
+    document.body.classList.remove('modal-open');
+
+    document.getElementById('importSummaryBackdrop')?.remove();
 }
 
 // Escape HTML
@@ -1100,8 +1213,8 @@ async function saveNewEntry() {
             loadEntries(currentSearch, 1, false);
 
             // Select the newly created entry
-            if (result.id) {
-                setTimeout(() => selectEntry(result.id), 500);
+            if (result.conversationId) {
+                setTimeout(() => selectEntry(result.conversationId), 500);
             }
         } else {
             const errorText = await apiResponse.text();
@@ -1133,6 +1246,10 @@ function cancelAddEntry() {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+    if (!document.getElementById('entriesList')) {
+        return;
+    }
+
     // Pre-fetch sessions so count is available immediately in the detail view
     fetch(`/api/sessions?pageSize=${sessionsPageSize}&days=${sessionsLookbackDays}&includeDeleted=${includeDeleted}`)
         .then(r => r.json())
@@ -1165,6 +1282,39 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('clearSearch').addEventListener('click', () => {
         searchInput.value = '';
         loadEntries('');
+    });
+
+    const importCoreButton = document.getElementById('importCoreButton');
+    const importCoreFile = document.getElementById('importCoreFile');
+    importCoreButton.addEventListener('click', () => importCoreFile.click());
+    importCoreFile.addEventListener('change', async () => {
+        const file = importCoreFile.files?.[0];
+        if (!file) {
+            return;
+        }
+
+        try {
+            const summary = await importCoreData(file);
+            showImportSummaryModal(summary);
+            await loadEntries(currentSearch, 1, false);
+        } catch (error) {
+            console.error('Import failed:', error);
+            logError('UI', 'Failed to import core data', error.toString());
+            showImportError(error);
+        } finally {
+            importCoreFile.value = '';
+        }
+    });
+
+    document.querySelectorAll('[data-bs-dismiss="modal"]').forEach(button => {
+        button.addEventListener('click', hideImportSummaryModalFallback);
+    });
+
+    const importSummaryModal = document.getElementById('importSummaryModal');
+    importSummaryModal?.addEventListener('click', (event) => {
+        if (event.target === importSummaryModal) {
+            hideImportSummaryModalFallback();
+        }
     });
 });
 

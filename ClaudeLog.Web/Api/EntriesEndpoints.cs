@@ -17,13 +17,13 @@ public static class EntriesEndpoints
 
         group.MapPost("/", CreateEntry);
         group.MapGet("/", GetEntries);
-        group.MapGet("/{id}", GetEntryById);
-        group.MapPatch("/{id}/title", UpdateTitle);
-        group.MapPatch("/{id}/favorite", UpdateFavorite);
-        group.MapPatch("/{id}/deleted", UpdateDeleted);
-        group.MapPatch("/{id}/question", UpdateQuestion);
-        group.MapPatch("/{id}/response", UpdateResponse);
-        group.MapPatch("/{id}/session", UpdateSessionId);
+        group.MapGet("/{conversationId:guid}", GetEntryById);
+        group.MapPatch("/{conversationId:guid}/title", UpdateTitle);
+        group.MapPatch("/{conversationId:guid}/favorite", UpdateFavorite);
+        group.MapPatch("/{conversationId:guid}/deleted", UpdateDeleted);
+        group.MapPatch("/{conversationId:guid}/question", UpdateQuestion);
+        group.MapPatch("/{conversationId:guid}/response", UpdateResponse);
+        group.MapPatch("/{conversationId:guid}/session", UpdateSessionId);
     }
 
     /// <summary>
@@ -37,8 +37,8 @@ public static class EntriesEndpoints
     {
         try
         {
-            var entryId = await conversationService.WriteEntryAsync(request.SessionId, request.Question, request.Response);
-            return Results.Ok(new CreateEntryResponse(entryId));
+            var conversationId = await conversationService.WriteEntryAsync(request.SessionId, request.Question, request.Response);
+            return Results.Ok(new CreateEntryResponse(conversationId));
         }
         catch (Exception ex)
         {
@@ -64,7 +64,7 @@ public static class EntriesEndpoints
         {
             var entries = await conversationService.GetEntriesAsync(search, includeDeleted, showFavoritesOnly, page, pageSize);
             var dtos = entries.Select(e => new EntryListDto(
-                e.Id,
+                e.ConversationId,
                 e.Title,
                 e.CreatedAt,
                 e.SessionId,
@@ -84,18 +84,18 @@ public static class EntriesEndpoints
     }
 
     private static async Task<IResult> GetEntryById(
-        long id,
+        Guid conversationId,
         ConversationService conversationService,
         MarkdownRenderer markdownRenderer,
         DiagnosticsService diagnosticsService)
     {
         try
         {
-            var entry = await conversationService.GetEntryByIdAsync(id);
+            var entry = await conversationService.GetEntryByIdAsync(conversationId);
             if (entry != null)
             {
                 var dto = new EntryDetailDto(
-                    entry.Id,
+                    entry.ConversationId,
                     entry.Title,
                     entry.Question,
                     markdownRenderer.ToHtml(entry.Question),
@@ -115,115 +115,115 @@ public static class EntriesEndpoints
         }
         catch (Exception ex)
         {
-            await diagnosticsService.WriteDiagnosticsAsync("WebApi.GetEntryById", ex.Message, LogLevel.Error, ex.StackTrace ?? "", entryId: id);
+            await diagnosticsService.WriteDiagnosticsAsync("WebApi.GetEntryById", ex.Message, LogLevel.Error, ex.StackTrace ?? "", conversationId: conversationId);
             return Results.Problem(ex.Message);
         }
     }
 
     private static async Task<IResult> UpdateTitle(
-        long id,
+        Guid conversationId,
         UpdateTitleRequest request,
         ConversationService conversationService,
         DiagnosticsService diagnosticsService)
     {
         try
         {
-            await conversationService.UpdateTitleAsync(id, request.Title);
+            await conversationService.UpdateTitleAsync(conversationId, request.Title);
             return Results.Ok(new { ok = true });
         }
         catch (Exception ex)
         {
-            await diagnosticsService.WriteDiagnosticsAsync("WebApi.UpdateTitle", ex.Message, LogLevel.Error, ex.StackTrace ?? "", entryId: id);
+            await diagnosticsService.WriteDiagnosticsAsync("WebApi.UpdateTitle", ex.Message, LogLevel.Error, ex.StackTrace ?? "", conversationId: conversationId);
             return Results.Problem(ex.Message);
         }
     }
 
     private static async Task<IResult> UpdateFavorite(
-        long id,
+        Guid conversationId,
         UpdateFavoriteRequest request,
         ConversationService conversationService,
         DiagnosticsService diagnosticsService)
     {
         try
         {
-            await conversationService.UpdateFavoriteAsync(id, request.IsFavorite);
+            await conversationService.UpdateFavoriteAsync(conversationId, request.IsFavorite);
             return Results.Ok(new { ok = true });
         }
         catch (Exception ex)
         {
-            await diagnosticsService.WriteDiagnosticsAsync("WebApi.UpdateFavorite", ex.Message, LogLevel.Error, ex.StackTrace ?? "", entryId: id);
+            await diagnosticsService.WriteDiagnosticsAsync("WebApi.UpdateFavorite", ex.Message, LogLevel.Error, ex.StackTrace ?? "", conversationId: conversationId);
             return Results.Problem(ex.Message);
         }
     }
 
     private static async Task<IResult> UpdateDeleted(
-        long id,
+        Guid conversationId,
         UpdateDeletedRequest request,
         ConversationService conversationService,
         DiagnosticsService diagnosticsService)
     {
         try
         {
-            await conversationService.UpdateDeletedAsync(id, request.IsDeleted);
+            await conversationService.UpdateDeletedAsync(conversationId, request.IsDeleted);
             return Results.Ok(new { ok = true });
         }
         catch (Exception ex)
         {
-            await diagnosticsService.WriteDiagnosticsAsync("WebApi.UpdateDeleted", ex.Message, LogLevel.Error, ex.StackTrace ?? "", entryId: id);
+            await diagnosticsService.WriteDiagnosticsAsync("WebApi.UpdateDeleted", ex.Message, LogLevel.Error, ex.StackTrace ?? "", conversationId: conversationId);
             return Results.Problem(ex.Message);
         }
     }
 
     private static async Task<IResult> UpdateQuestion(
-        long id,
+        Guid conversationId,
         UpdateQuestionRequest request,
         ConversationService conversationService,
         DiagnosticsService diagnosticsService)
     {
         try
         {
-            await conversationService.UpdateQuestionAsync(id, request.Question);
+            await conversationService.UpdateQuestionAsync(conversationId, request.Question);
             return Results.Ok(new { ok = true });
         }
         catch (Exception ex)
         {
-            await diagnosticsService.WriteDiagnosticsAsync("WebApi.UpdateQuestion", ex.Message, LogLevel.Error, ex.StackTrace ?? "", entryId: id);
+            await diagnosticsService.WriteDiagnosticsAsync("WebApi.UpdateQuestion", ex.Message, LogLevel.Error, ex.StackTrace ?? "", conversationId: conversationId);
             return Results.Problem(ex.Message);
         }
     }
 
     private static async Task<IResult> UpdateResponse(
-        long id,
+        Guid conversationId,
         UpdateResponseRequest request,
         ConversationService conversationService,
         DiagnosticsService diagnosticsService)
     {
         try
         {
-            await conversationService.UpdateResponseAsync(id, request.Response);
+            await conversationService.UpdateResponseAsync(conversationId, request.Response);
             return Results.Ok(new { ok = true });
         }
         catch (Exception ex)
         {
-            await diagnosticsService.WriteDiagnosticsAsync("WebApi.UpdateResponse", ex.Message, LogLevel.Error, ex.StackTrace ?? "", entryId: id);
+            await diagnosticsService.WriteDiagnosticsAsync("WebApi.UpdateResponse", ex.Message, LogLevel.Error, ex.StackTrace ?? "", conversationId: conversationId);
             return Results.Problem(ex.Message);
         }
     }
 
     private static async Task<IResult> UpdateSessionId(
-        long id,
+        Guid conversationId,
         UpdateSessionIdRequest request,
         ConversationService conversationService,
         DiagnosticsService diagnosticsService)
     {
         try
         {
-            await conversationService.UpdateSessionIdAsync(id, request.SessionId);
+            await conversationService.UpdateSessionIdAsync(conversationId, request.SessionId);
             return Results.Ok(new { ok = true });
         }
         catch (Exception ex)
         {
-            await diagnosticsService.WriteDiagnosticsAsync("WebApi.UpdateSessionId", ex.Message, LogLevel.Error, ex.StackTrace ?? "", entryId: id);
+            await diagnosticsService.WriteDiagnosticsAsync("WebApi.UpdateSessionId", ex.Message, LogLevel.Error, ex.StackTrace ?? "", conversationId: conversationId);
             return Results.Problem(ex.Message);
         }
     }

@@ -1,7 +1,7 @@
 namespace ClaudeLog.Data.Models;
 
 public record EntryListItem(
-    long Id,
+    Guid ConversationId,
     string Title,
     DateTime CreatedAt,
     string SessionId,
@@ -13,7 +13,7 @@ public record EntryListItem(
 );
 
 public record EntryDetail(
-    long Id,
+    Guid ConversationId,
     string Title,
     string Question,
     string Response,
