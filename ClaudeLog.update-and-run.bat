@@ -205,7 +205,7 @@ if defined TASK_EXISTS (
     powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-ScheduledTask -TaskName '%TASK_NAME%'" >nul 2>&1
     if !ERRORLEVEL! NEQ 0 (
         echo WARNING: Failed to start scheduled task %TASK_NAME%.
-        echo Verify the task points to %PUBLISH_ROOT%\ClaudeLog.Web\ClaudeLog.Web.exe
+        echo Verify the task action runs %PUBLISH_ROOT%\ClaudeLog.Web\ClaudeLog.Web.exe directly.
     ) else (
         echo   Scheduled task started.
     )

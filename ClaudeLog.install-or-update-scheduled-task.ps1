@@ -14,7 +14,6 @@ $appExe = Join-Path $appRoot "ClaudeLog.Web.exe"
 $appUrl = "http://0.0.0.0:15088"
 $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $taskDescription = "Starts ClaudeLog.Web at user logon from C:\Apps\ClaudeLog.Web."
-$launcherScript = Join-Path $appRoot "Start-ClaudeLog.Web.ps1"
 
 function Write-Section([string]$Title) {
     Write-Host "============================================"
@@ -30,37 +29,8 @@ try {
         throw "Published app not found at $appExe. Run ClaudeLog.update-and-run.bat first."
     }
 
-    $launcherContent = @'
-param(
-    [string]$AppExe,
-    [string]$AppRoot,
-    [string]$AppUrl
-)
-
-$env:ASPNETCORE_ENVIRONMENT = 'Production'
-$env:ASPNETCORE_URLS = $AppUrl
-$startupLog = Join-Path $AppRoot 'startup.log'
-$startupErrorLog = Join-Path $AppRoot 'startup-error.log'
-
-Start-Process `
-    -FilePath $AppExe `
-    -WorkingDirectory $AppRoot `
-    -WindowStyle Hidden `
-    -RedirectStandardOutput $startupLog `
-    -RedirectStandardError $startupErrorLog
-'@
-
-    Set-Content -LiteralPath $launcherScript -Value $launcherContent -Encoding ASCII
-
-    $command = @"
-& '$launcherScript' -AppExe '$appExe' -AppRoot '$appRoot' -AppUrl '$appUrl'
-"@
-
-    $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
-
     $action = New-ScheduledTaskAction `
-        -Execute "powershell.exe" `
-        -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand $encodedCommand" `
+        -Execute $appExe `
         -WorkingDirectory $appRoot
 
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $currentUser
@@ -101,8 +71,7 @@ Start-Process `
     Write-Host "Scheduled task '$TaskName' is ready."
     Write-Host "It will start ClaudeLog.Web at logon for $currentUser."
     Write-Host "Target executable: $appExe"
-    Write-Host "Launcher script: $launcherScript"
-    Write-Host "URL: $appUrl"
+    Write-Host "Expected URL: $appUrl"
     Write-Host "You can start it now with:"
     Write-Host "  Start-ScheduledTask -TaskName '$TaskName'"
 }
